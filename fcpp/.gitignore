@@ -1,0 +1,10 @@
+*.pyc
+#*
+.#*
+bin/
+doc/
+output/
+.vagrant/
+.DS_Store
+bazel-*
+_bazel_*
