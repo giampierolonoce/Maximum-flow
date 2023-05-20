@@ -212,7 +212,7 @@ MAIN() {
    // node.velocity() = -node.position()/200;
 }
 //! @brief Export types used by the main function.
-FUN_EXPORT main_t = export_list<double, int,device_t, field<real_t>, real_t,  field<int>, bool >;
+FUN_EXPORT main_t = export_list<device_t, field<real_t>, real_t, bool >;
 
 } // namespace coordination
 
