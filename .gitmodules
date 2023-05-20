@@ -1,4 +1,0 @@
-[submodule "fcpp"]
-	path = fcpp
-	url = https://github.com/fcpp/fcpp.git
-	branch = dev
