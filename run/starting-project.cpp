@@ -31,8 +31,6 @@ namespace tags {
     struct node_shape {};
     // ... add more as needed, here and in the tuple_store<...> option below
 
-    struct node_is_source {};
-    struct node_is_sink {};
 
     struct node_is_source_like{};
     struct node_is_sink_like{};
@@ -93,14 +91,21 @@ FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>& graph){ CODE
                 return g>0 ? d : INF;
             }, distances, graph);
             real_t m = min(tmp);
-                
+
+            real_t s = b ? 0.0 : self;
             self = b
                 ? 0.0
-                : self > m
+                : self> m
                     ? m+1
                     : INF;
 
-            return make_tuple(distances, field<real_t>(self));
+            field<real_t> response = field<real_t>(self);
+        
+            mod_self(CALL, response) = s == m && m<INF
+                                            ?s+0.5
+                                            :self;
+                                           
+            return make_tuple(distances, response);
     });
 }
 
@@ -124,11 +129,9 @@ MAIN() {
     field<real_t>& incoming_residual_capacity = node.storage(incoming_residual_capacity_field{});
     real_t& from_source = node.storage(node_distance_from_source{});
     real_t& to_sink = node.storage(node_distance_to_sink{});
-    real_t& excess = node.storage(node_excess{});
+    real_t& excess_ = node.storage(node_excess{});
     field<real_t>& from_source_field = node.storage(distance_from_source_field{});
     field<real_t>& to_sink_field = node.storage(distance_to_sink_field{});
-    bool& is_source = node.storage(node_is_source{});
-    bool& is_sink = node.storage(node_is_sink{});
     bool& is_source_like = node.storage(node_is_source_like{});
     bool& is_sink_like = node.storage(node_is_sink_like{});
 
@@ -136,8 +139,8 @@ MAIN() {
         // usage of node storage
     node.storage(node_size{}) = 10;
    
-    is_source = node.uid==0;
-    is_sink = node.uid == NODE_NUM-1;
+    bool is_source = node.uid==0;
+    bool is_sink = node.uid == NODE_NUM-1;
 
     node.storage(node_shape{}) = is_source
                                     ?shape::star 
@@ -152,14 +155,16 @@ MAIN() {
 
     flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
 
-        excess = is_source
+    excess_= sum (flow);
+
+    real_t excess = is_source
                     ?-INF
                     :is_sink
                         ? INF
                         :sum(flow);
 
     
-        is_source_like = excess<0 ;
+        is_source_like = excess<0;
         is_sink_like = excess>0;
 
         
@@ -209,7 +214,7 @@ MAIN() {
                                             ?color(YELLOW)
                                             :color(WHITE);
 
-   // node.velocity() = -node.position()/200;
+   //node.velocity() = -node.position()/250;
 }
 //! @brief Export types used by the main function.
 FUN_EXPORT main_t = export_list<device_t, field<real_t>, real_t, bool >;
@@ -241,14 +246,12 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
 //! @brief The distribution of initial node positions (random in a 500x500 square).
-using rectangle_d = distribution::rect_n<1, 0, 0, 500, 500>;
+using rectangle_d = distribution::rect_n<1, 0, 0, 400, 400>;
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
     node_color,                         color,
     node_size,                          double,
     node_shape,                         shape,
-    node_is_source,                     bool,
-    node_is_sink,                       bool,
     node_is_source_like,                bool,
     node_is_sink_like,                  bool,
     node_distance_from_source,          real_t,
