@@ -92,6 +92,7 @@ FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>& graph){ CODE
             }, distances, graph);
             real_t m = min(tmp);
 
+/* funziona abbastanza, ma quando la rete è intricata, il flusso rimane instabile vicino alla sorgente
             real_t s = b ? 0.0 : self;
             self = b
                 ? 0.0
@@ -101,11 +102,21 @@ FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>& graph){ CODE
 
             field<real_t> response = field<real_t>(self);
         
-            mod_self(CALL, response) = s == m && m<INF
+            mod_self(CALL, response) = s==m && m<INF
                                             ?s+0.5
                                             :self;
-                                           
+             
+                                        
             return make_tuple(distances, response);
+    */
+            self = b
+                ? 0.0
+                : self> m
+                    ? m+1
+                    : self;
+
+            return make_tuple(distances, field<real_t>(self));
+
     });
 }
 
@@ -150,8 +161,9 @@ MAIN() {
 
     field<device_t> ids = nbr_uid(CALL);
     //we want  that, for every couple of neighbours, capacity is nonzero for at most one direction
-    capacity = map_hood([&](device_t id){ return (node.uid < id);}, ids); 
+    //capacity = map_hood([&](device_t id){ return (node.uid < id);}, ids); 
     
+    capacity = map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids); 
 
     flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
 
@@ -246,7 +258,7 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
 //! @brief The distribution of initial node positions (random in a 500x500 square).
-using rectangle_d = distribution::rect_n<1, 0, 0, 400, 400>;
+using rectangle_d = distribution::rect_n<1, 0, 0, 500, 500>;
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
     node_color,                         color,
