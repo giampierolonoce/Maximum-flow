@@ -92,7 +92,7 @@ FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>& graph){ CODE
             }, distances, graph);
             real_t m = min(tmp);
 
-/* funziona abbastanza, ma quando la rete è intricata, il flusso rimane instabile vicino alla sorgente
+// funziona abbastanza, ma quando la rete è intricata, il flusso rimane instabile vicino alla sorgente
             real_t s = b ? 0.0 : self;
             self = b
                 ? 0.0
@@ -108,14 +108,7 @@ FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>& graph){ CODE
              
                                         
             return make_tuple(distances, response);
-    */
-            self = b
-                ? 0.0
-                : self> m
-                    ? m+1
-                    : self;
 
-            return make_tuple(distances, field<real_t>(self));
 
     });
 }
