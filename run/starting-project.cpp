@@ -93,17 +93,57 @@ FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>& graph){ CODE
             real_t m = min(tmp);
 
 // funziona abbastanza, ma quando la rete è intricata, il flusso rimane instabile vicino alla sorgente
-            self = b
+           /* self = b
                 ? 0.0
                 : self> m ? m+1: INF;
+                */
 
        
              
                                         
-            return make_tuple(distances, field<real_t>(self));
-
-
+            return make_tuple(distances, field<real_t>(b
+                ? 0.0
+                : self> m ? m+1: INF));
     });
+}
+
+FUN field<real_t> capacity(ARGS){ CODE
+    field<device_t> ids = nbr_uid(CALL);
+    //we want  that, for every couple of neighbours, capacity is nonzero for at most one direction
+    // ? id-node.uid:0
+    return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
+}
+
+
+FUN field<real_t> residual_capacity_hood(ARGS, field<real_t> const& flow){ CODE
+    return capacity(CALL) - flow;
+}
+
+FUN field<real_t> incoming(ARGS, field<real_t>&& graph){ CODE
+    return nbr(CALL, graph);
+}
+
+FUN field<real_t> incoming_residual_capacity_hood(ARGS, field<real_t> const& flow){ CODE
+    return incoming(CALL, residual_capacity_hood(CALL, flow));
+}
+
+FUN real_t excess(ARGS, field<real_t> flow){ CODE
+
+    bool is_source = node.uid==0;
+    bool is_sink = node.uid == NODE_NUM-1;
+    return is_source
+                ?-INF
+                :is_sink
+                    ? INF
+                    :sum( flow);
+}
+
+FUN bool source_like(ARGS, field<real_t> flow){ CODE
+    return excess(CALL, flow)<0;
+}
+
+FUN bool sink_like(ARGS, field<real_t> flow){ CODE
+    return excess(CALL, flow)>0;
 }
 
 
@@ -120,10 +160,10 @@ MAIN() {
     using namespace tags;
 
     //references
-    field<real_t>& capacity = node.storage(capacity_field{});
+    field<real_t>& capacity_ = node.storage(capacity_field{});
     field<real_t>& flow_ = node.storage(flow_field{});
-    field<real_t>& residual_capacity = node.storage(residual_capacity_field{});
-    field<real_t>& incoming_residual_capacity = node.storage(incoming_residual_capacity_field{});
+    field<real_t>& residual_capacity_ = node.storage(residual_capacity_field{});
+    field<real_t>& incoming_residual_capacity_ = node.storage(incoming_residual_capacity_field{});
     real_t& from_source = node.storage(node_distance_from_source{});
     real_t& to_sink = node.storage(node_distance_to_sink{});
     real_t& excess_ = node.storage(node_excess{});
@@ -145,25 +185,16 @@ MAIN() {
                                         ? shape::tetrahedron
                                         : shape::sphere;
 
-    field<device_t> ids = nbr_uid(CALL);
-    //we want  that, for every couple of neighbours, capacity is nonzero for at most one direction
-    // ? id-node.uid:0
-    capacity = map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids); 
+    capacity_ = capacity(CALL);
 
     flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
 
+            
+            is_source_like = source_like(CALL, flow);
+            is_sink_like = sink_like(CALL, flow);
 
-            real_t excess = is_source
-                            ?-INF
-                            :is_sink
-                                ? INF
-                                :sum(flow);
-
-            is_source_like = excess<0;
-            is_sink_like = excess>0;
-
-            residual_capacity = capacity - flow;
-            incoming_residual_capacity = nbr(CALL, residual_capacity);
+            field<real_t> residual_capacity = residual_capacity_hood(CALL, flow);
+            field<real_t> incoming_residual_capacity = incoming_residual_capacity_hood(CALL, flow);
 
             from_source_field = distance_hood(CALL, is_source_like, incoming_residual_capacity);
             from_source = self(CALL, from_source_field);
@@ -191,25 +222,25 @@ MAIN() {
 
                 
                 field<real_t> flow_increment(0.0);
-                real_t exc = excess;
+                real_t e = excess(CALL, flow);
 
-                if(self!= INF  && exc<0){
+                if(self!= INF  && e<0){
                     flow_increment = map_hood([&](real_t d, real_t r){
                                         real_t a = 0.0;
-                                        if(exc<0 && d == self-1){
-                                            a = std::min(r, -exc);
-                                            exc+= a;
+                                        if(e<0 && d == self-1){
+                                            a = std::min(r, -e);
+                                            e+= a;
                                         }
                                         return a;
                                     },distances, residual_capacity);
                 
                 }
-                if(self==INF && exc<0){
+                if(self==INF && e<0){
                     flow_increment += map_hood([&](real_t f){
                         real_t a = 0.0;
-                        if(exc<0 && f<0){
-                            a = std::min(-f, -exc);
-                            exc += a;
+                        if(e<0 && f<0){
+                            a = std::min(-f, -e);
+                            e += a;
                         }
                         return a;
                     }, flow); 
@@ -224,6 +255,8 @@ MAIN() {
         return make_tuple(flow, -flow);
     });
     
+    residual_capacity_ = residual_capacity_hood(CALL, flow_);
+    incoming_residual_capacity_ = incoming_residual_capacity_hood(CALL, flow_ );
     excess_= sum(flow_);
 
 
