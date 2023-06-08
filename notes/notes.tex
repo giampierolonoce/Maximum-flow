@@ -13,23 +13,67 @@
 \usepackage{amscd}
 \usepackage{epigraph}
 \theoremstyle{plain}                    
-\newtheorem{teo}{Teorema}[section]      
+\newtheorem{teo}{Theorem}[section]      
 \newtheorem{prop}[teo]{Proposizione}    
-\newtheorem{cor}[teo]{Corollario}       
+\newtheorem{cor}[teo]{Corollary}       
 \newtheorem{lem}[teo]{Lemma}            
 \theoremstyle{definition}               
 \theoremstyle{remark}                  
-\newtheorem{oss}{Osservazione}          
+\newtheorem{oss}{Observation}          
 \usepackage[colorlinks=true,linkcolor=blue]{hyperref}
 
 \begin{document}
-
+Preliminar notes on maximum-flow problem solved in FCPP.\\
 Notation:\\
-Ehi\\
-\\
+ $\small\bullet\ \mathcal{C}$ will denote the directed weighted graph of capacities.\\
+ $s$ and $t$ will denote respectively source and sink of our graph.\\
+ $\small\bullet\ \mathcal{R}$ will denote the directed weighted graph of residual capacities.\\
+ $\small\bullet\ $ For a directed graph $G$, $d_G(\delta, \delta')$ will be the distance from node $\delta$ to node $\delta'$. It takes values in $\mathbb{N}\cup\{\infty \}$.\\
+ $\small\bullet\ $ For a acyclic directed graph $G$, $D_G(\delta, \delta')$ will be the maximum of the lenghts of all paths from node $\delta$ to node $\delta'$.\\
+ $\small\bullet\ $  For a path $\mathfrak{p}$ we will denote with $|\mathfrak{p}|$ its lenght.\\
+
+When it will be convenient, we will treat a directed weighted graph $G$ as a function $G: V\times V\ \rightarrow \mathbb{R_{+}}$, where $V$ is its set of vertices. With a little abuse of notation we will say that the edge from a node $\delta$ to a node $\delta'$ is in $G$, or $(\delta, \delta') \in G$,  in place of $G(\delta, \delta') \not= 0$.\\
+Likewise we will say that a path $\mathfrak{p}$ is contained in $G$, or $\mathfrak{p}\subset G$, if every edge in $\mathfrak{p}$ is in $G$.\\
+\begin{oss} $\mathcal{C}$ is acyclic and
+\begin{equation}
+\forall \delta, \delta':\ \mathcal{C}(\delta, \delta')\not= 0 \Rightarrow \mathcal{C}(\delta', \delta)\ =\ 0
+\end{equation}
+  i.e. the capacity between any two nodes can be nonzero in almost one direction.\\
+$\mathcal{R}$, has the same set of vertices than $\mathcal{C}$, it can have cycles, and has the property that 
+\begin{equation}
+\forall \delta, \delta':\ \mathcal{R}(\delta, \delta')+\mathcal{R}(\delta', \delta)\ =\ \mathcal{C}(\delta, \delta')+\mathcal{C}(\delta', \delta)\ .
+\end{equation}
+\end{oss}
 \begin{lem}
-Ehi
+With the above notation, we have
+\begin{equation*}
+\forall \delta\ d_\mathcal{R}(s, \delta)<\infty\ \Rightarrow\  d_{\mathcal{R}}(s, \delta) \le D_{\mathcal{C}}(s, \delta)
+\end{equation*}
 \end{lem}
+\begin{proof}
+By contradiction. Let's suppose that exists $\bar\delta$ such that $d_\mathcal{R}(s, \delta)<\infty$ and $d_\mathcal{R}(s,\bar\delta)>D_\mathcal{C}(s, \bar\delta)$.  Moreover suppose that $\bar\delta$ has minimal $d_\mathcal{R}(s, \bar\delta)$ among nodes with this property.\\
+Let $\mathfrak{p}$ be a minimal path from $s$ to $\bar\delta$. From $|\mathfrak{p}|>D_\mathcal{C}(s, \bar\delta)$ it follows that there are two nodes $\delta'$ and $\delta''$ such that $(\delta', \delta'')\in \mathfrak{p}$ and $(\delta', \delta'')\not\in\mathcal{C}$. \\
+Between edges with  this property, we can always pick the edge that is the closest to $\bar\delta$, so we have $d_\mathcal{R}(\delta'', \bar\delta) = d_\mathcal{C}(\delta'', \bar\delta)$.\\
+By minimality of $|\mathfrak{p}|$ we have \\
+$d_\mathcal{R}(s, \delta')\le D_\mathcal{C}(s, \delta')\ \ $ and 
+$d_\mathcal{R}(s, \delta'')\le D_\mathcal{C}(s, \delta'')$\\
+
+and so 
+\begin{equation*}
+\begin{split}
+d_\mathcal{R}(s, \delta') + 1 + d_\mathcal{R}(\delta'', \bar\delta) &= d_\mathcal{R}(s, \delta'') +  d_\mathcal{R}(\delta'', \bar\delta)\\
+  &=  d_\mathcal{R}(s, \bar\delta)\\
+  &\ge D_\mathcal{C}(s, \bar\delta) + 1\\
+  &\ge D_\mathcal{C}(s, \delta'') + d_\mathcal{C}(\delta'',\bar\delta) + 1 \\
+  &= D_\mathcal{C}(s, \delta'') + d_\mathcal{R}(\delta'',\bar\delta) + 1
+\end{split}
+\end{equation*}
+Thus
+\begin{equation*}
+ d_\mathcal{R}(s, \delta') \ge D_\mathcal{C}(s, \delta'') \ge d_\mathcal{R}(s, \delta'') = d_\mathcal{R}(s, \delta') + 1
+\end{equation*}
+Absurd.
+\end{proof}
 
 
 \end{document}
