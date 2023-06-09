@@ -7,29 +7,14 @@
 
 const int NODE_NUM = 100;
 
-/**
- * @brief Namespace containing all the objects in the FCPP library.
- */
 namespace fcpp {
 
-//! @brief Dummy ordering between positions (allows positions to be used as secondary keys in ordered tuples).
-template <size_t n>
-bool operator<(vec<n> const& x, vec<n> const& y) {
-    return x[0]<y[0];
-}
-
-//! @brief Namespace containing the libraries of coordination routines.
 namespace coordination {
 
-//! @brief Tags used in the node storage.
 namespace tags {
-    //! @brief Color of the current node.
     struct node_color {};
-    //! @brief Size of the current node.
     struct node_size {};
-    //! @brief Shape of the current node.
     struct node_shape {};
-    // ... add more as needed, here and in the tuple_store<...> option below
 
 
     struct node_is_source_like{};
@@ -37,6 +22,7 @@ namespace tags {
 
     struct flow_field {};
     struct node_excess {};
+
     //fields of outgoing capacities
     struct capacity_field {};
     struct residual_capacity_field {};
@@ -50,13 +36,95 @@ namespace tags {
 //! @brief The maximum communication range between nodes.
 constexpr size_t communication_range = 100;
 
-
-
 const size_t dim = 2;
 
 
 
+/*
+In the description of the algorithm, graphs on the set of devices will be identified with fields of reals.
+As the latter may be seen as the local view of the former: 
+if  d1 is a device, d2  neighbour of d1 and the field F in d1  has value v nonzero in d2,
+then we say that the graph associated with F has an arc from d1 to d2 with weight v.
 
+This algorithm is inspired to the Ford–Fulkerson method: as long as there is an admissible path 
+from source to sink in the residual graph, we push flow along the path.
+We detect the presence of such paths simply by considering the distances from source and to sink
+along the residual graph.
+If a node has both finite distance from source and finite distance to sink, then there is an
+admissible path passing through it.
+*/
+
+
+/* All graphs considered here are directed. For this reason we have to implement a
+ "distance along graph" function. We also are interested in which direction communicates to
+  us which distance. Hence this function returns a field type.
+*/
+FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>&& graph){ CODE
+
+    return nbr(CALL, b?field<real_t>(0.0):field<real_t>(INF), [&](field<real_t> distances){
+            real_t s = self(CALL, distances);
+            
+
+            field<real_t> tmp = map_hood([&](real_t d, real_t g){
+                return g>0 ? d : INF;
+            }, distances, graph);
+            real_t m = min_hood(CALL, tmp);
+    /*         
+    our node communicates to neighbours its (guess regarding its) distance to nodes
+    with a certain property. 
+    In residual graphs there could be cycles that become disconnected from those nodes.
+    Here there's a trick aimed at detecting those cycles. It doesn't work very well.
+    */
+            return make_tuple(distances, field<real_t>(b
+                                                        ? 0.0
+                                                        : s> m 
+                                                            ? m+1
+                                                            : INF));
+    });
+}
+
+/* Here we implement our rule to assign dynamically the capacities between nodes.
+These capacities will remain unaffected by the updates in our flow.
+The Capacity weighted directed graph is acyclic.
+
+Currently there are only two (similar) capacity functions proposed. This has capacities 
+equal to 0 or 1.
+*/
+FUN field<real_t> capacity_v1(ARGS){ CODE
+    field<device_t> ids = nbr_uid(CALL);
+    return map_hood([&](device_t id){ return node.uid<id ;}, ids);
+}
+
+//This capacity funtion has different nonnull capacities.
+FUN field<real_t> capacity_v2(ARGS){ CODE
+    field<device_t> ids = nbr_uid(CALL);
+    return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
+}
+
+// Rough method to switch between capacity_v1 and capacity_v2
+FUN field<real_t> capacity(ARGS){ CODE
+    //return capacity_v1(CALL);
+    return capacity_v2(CALL);
+}
+
+
+// Usual definition for the residual graph. Notice that it has only nonnegative weights.
+// As already mentioned, it can have cycles.
+FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
+    return capacity(CALL) - flow;
+}
+
+//Reverse edges in a graph
+FUN field<real_t> incoming(ARGS, field<real_t>&& graph){ CODE
+    return nbr(CALL, graph);
+}
+
+// Reverse the residual graph
+FUN field<real_t> incoming_residual_capacity(ARGS, field<real_t> flow){ CODE
+    return incoming(CALL, residual_capacity(CALL, flow));
+}
+
+//This is just another function to sum up the values in a field
 real_t sum(field<real_t>& input){
 
     real_t tmp= 0.0;
@@ -66,54 +134,7 @@ real_t sum(field<real_t>& input){
     return tmp;
 }
 
-
-real_t min(field<real_t> input){
-
-    real_t tmp= INF;
-    for (details::field_iterator<field<real_t>> it(input); !it.end(); ++it){
-        tmp = std::min(it.value(), tmp);
-    }
-    return tmp;
-}
-
-FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>&& graph){ CODE
-
-    return nbr(CALL, b?field<real_t>(0.0):field<real_t>(INF), [&](field<real_t> distances){
-            real_t s = self(CALL, distances);
-            
-            field<real_t> tmp = map_hood([&](real_t d, real_t g){
-                return g>0 ? d : INF;
-            }, distances, graph);
-            real_t m = min(tmp);
-             
-                                        
-            return make_tuple(distances, field<real_t>(b
-                                                        ? 0.0
-                                                        : s> m 
-                                                            ? m+1
-                                                            : INF));
-    });
-}
-
-FUN field<real_t> capacity(ARGS){ CODE
-    field<device_t> ids = nbr_uid(CALL);
-    // ? id-node.uid:0
-    return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
-}
-
-
-FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
-    return capacity(CALL) - flow;
-}
-
-FUN field<real_t> incoming(ARGS, field<real_t>&& graph){ CODE
-    return nbr(CALL, graph);
-}
-
-FUN field<real_t> incoming_residual_capacity(ARGS, field<real_t> flow){ CODE
-    return incoming(CALL, residual_capacity(CALL, flow));
-}
-
+//
 FUN real_t excess(ARGS, field<real_t> flow){ CODE
 
     bool is_source = node.uid==0;
@@ -150,18 +171,17 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
 }
 
 FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
+    // _n stands for "name"
+    
     field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
-            field<real_t> incoming_residual_capacity_n = incoming_residual_capacity(CALL, flow);
 
-            field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
-            field<real_t> from_source_field_n = from_source_field(CALL, flow);
-            real_t to_sink_n = to_sink(CALL, flow);
-            real_t from_source_n = from_source(CALL, flow);
+    field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
+    real_t to_sink_n = to_sink(CALL, flow);
 
-                real_t excess_n = excess(CALL, flow);
+    real_t excess_n = excess(CALL, flow);
 
-                if(to_sink_n!= INF  && excess_n<0){
-                    return map_hood([&](real_t d, real_t r){
+    if(to_sink_n!= INF  && excess_n<0){
+        return map_hood([&](real_t d, real_t r){
                                         real_t a = 0.0;
                                         if(excess_n<0 && d == to_sink_n-1){
                                             a = std::min(r, -excess_n);
@@ -169,9 +189,9 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
                                         }
                                         return a;
                                     },to_sink_field_n, residual_capacity_n);
-                }
-                else if(to_sink_n==INF && excess_n<0){
-                    return map_hood([&](real_t f){
+    }
+    else if(excess_n<0){
+        return map_hood([&](real_t f){
                         real_t a = 0.0;
                         if(excess_n<0 && f<0){
                             a = std::min(-f, -excess_n);
@@ -179,19 +199,15 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
                         }
                         return a;
                     }, flow); 
-                }
-                else{
-                    return field<real_t>(0.0);
-                }
+    }
+    else return field<real_t>(0.0);
+                
 }
 
 
 FUN field<real_t> update_flow(ARGS){ CODE
     return nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
-        //_n stands for "name"
-
         field<real_t> up_flow = flow - nbr(CALL, flow_increment(CALL, flow));
-
         return make_tuple(up_flow, -up_flow);
     });
 }
@@ -239,7 +255,7 @@ MAIN() {
     is_sink_like_ = is_sink_like(CALL, flow_);
     from_source_ = from_source(CALL, flow_);
     to_sink_ = to_sink(CALL, flow_);
-    excess_= sum(flow_);
+    excess_= sum( flow_);
 
 
     node.storage(node_color{}) =   is_source_like_
@@ -282,7 +298,7 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
 //! @brief The distribution of initial node positions (random in a 500x500 square).
-using rectangle_d = distribution::rect_n<1, 0, 0, 400, 400>;
+using rectangle_d = distribution::rect_n<1, 0, 0, 500, 500>;
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
     node_color,                         color,
