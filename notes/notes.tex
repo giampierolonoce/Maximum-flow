@@ -44,36 +44,7 @@ $\mathcal{R}$, has the same set of vertices than $\mathcal{C}$, it can have cycl
 \forall \delta, \delta':\ \mathcal{R}(\delta, \delta')+\mathcal{R}(\delta', \delta)\ =\ \mathcal{C}(\delta, \delta')+\mathcal{C}(\delta', \delta)\ .
 \end{equation}
 \end{oss}
-\begin{lem}
-With the above notation, we have
-\begin{equation*}
-\forall \delta\ d_\mathcal{R}(s, \delta)<\infty\ \Rightarrow\  d_{\mathcal{R}}(s, \delta) \le D_{\mathcal{C}}(s, \delta)
-\end{equation*}
-\end{lem}
-\begin{proof}
-By contradiction. Let's suppose that exists $\bar\delta$ such that $d_\mathcal{R}(s, \delta)<\infty$ and $d_\mathcal{R}(s,\bar\delta)>D_\mathcal{C}(s, \bar\delta)$.  Moreover suppose that $\bar\delta$ has minimal $d_\mathcal{R}(s, \bar\delta)$ among nodes with this property.\\
-Let $\mathfrak{p}$ be a minimal path from $s$ to $\bar\delta$. From $|\mathfrak{p}|>D_\mathcal{C}(s, \bar\delta)$ it follows that there are two nodes $\delta'$ and $\delta''$ such that $(\delta', \delta'')\in \mathfrak{p}$ and $(\delta', \delta'')\not\in\mathcal{C}$. \\
-Between edges with  this property, we can always pick the edge that is the closest to $\bar\delta$, so we have $d_\mathcal{R}(\delta'', \bar\delta) = d_\mathcal{C}(\delta'', \bar\delta)$.\\
-By minimality of $|\mathfrak{p}|$ we have \\
-$d_\mathcal{R}(s, \delta')\le D_\mathcal{C}(s, \delta')\ \ $ and 
-$d_\mathcal{R}(s, \delta'')\le D_\mathcal{C}(s, \delta'')$\\
 
-and so 
-\begin{equation*}
-\begin{split}
-d_\mathcal{R}(s, \delta') + 1 + d_\mathcal{R}(\delta'', \bar\delta) &= d_\mathcal{R}(s, \delta'') +  d_\mathcal{R}(\delta'', \bar\delta)\\
-  &=  d_\mathcal{R}(s, \bar\delta)\\
-  &\ge D_\mathcal{C}(s, \bar\delta) + 1\\
-  &\ge D_\mathcal{C}(s, \delta'') + d_\mathcal{C}(\delta'',\bar\delta) + 1 \\
-  &= D_\mathcal{C}(s, \delta'') + d_\mathcal{R}(\delta'',\bar\delta) + 1
-\end{split}
-\end{equation*}
-Thus
-\begin{equation*}
- d_\mathcal{R}(s, \delta') \ge D_\mathcal{C}(s, \delta'') \ge d_\mathcal{R}(s, \delta'') = d_\mathcal{R}(s, \delta') + 1
-\end{equation*}
-Absurd.
-\end{proof}
 
 
 \end{document}
