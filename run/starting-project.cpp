@@ -149,15 +149,8 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     return self(CALL, to_sink_field(CALL, flow));
 }
 
-
-FUN field<real_t> update_flow(ARGS){ CODE
-    return nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
-        //_n stands for "name"
-            
-            bool is_source_like_n = is_source_like(CALL, flow);
-            bool is_sink_like_n = is_sink_like(CALL, flow);
-
-            field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
+FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
+    field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
             field<real_t> incoming_residual_capacity_n = incoming_residual_capacity(CALL, flow);
 
             field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
@@ -165,37 +158,41 @@ FUN field<real_t> update_flow(ARGS){ CODE
             real_t to_sink_n = to_sink(CALL, flow);
             real_t from_source_n = from_source(CALL, flow);
 
-                
-                field<real_t> flow_increment(0.0);
-                real_t e = excess(CALL, flow);
+                real_t excess_n = excess(CALL, flow);
 
-                if(to_sink_n!= INF  && e<0){
-                    flow_increment = map_hood([&](real_t d, real_t r){
+                if(to_sink_n!= INF  && excess_n<0){
+                    return map_hood([&](real_t d, real_t r){
                                         real_t a = 0.0;
-                                        if(e<0 && d == to_sink_n-1){
-                                            a = std::min(r, -e);
-                                            e+= a;
+                                        if(excess_n<0 && d == to_sink_n-1){
+                                            a = std::min(r, -excess_n);
+                                            excess_n+= a;
                                         }
                                         return a;
                                     },to_sink_field_n, residual_capacity_n);
-                
                 }
-                if(to_sink_n==INF && e<0){
-                    flow_increment += map_hood([&](real_t f){
+                else if(to_sink_n==INF && excess_n<0){
+                    return map_hood([&](real_t f){
                         real_t a = 0.0;
-                        if(e<0 && f<0){
-                            a = std::min(-f, -e);
-                            e += a;
+                        if(excess_n<0 && f<0){
+                            a = std::min(-f, -excess_n);
+                            excess_n += a;
                         }
                         return a;
                     }, flow); 
                 }
-    
+                else{
+                    return field<real_t>(0.0);
+                }
+}
 
-                flow -= nbr(CALL, flow_increment);
 
-            
-        return make_tuple(flow, -flow);
+FUN field<real_t> update_flow(ARGS){ CODE
+    return nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
+        //_n stands for "name"
+
+        field<real_t> up_flow = flow - nbr(CALL, flow_increment(CALL, flow));
+
+        return make_tuple(up_flow, -up_flow);
     });
 }
 
@@ -285,7 +282,7 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
 //! @brief The distribution of initial node positions (random in a 500x500 square).
-using rectangle_d = distribution::rect_n<1, 0, 0, 500, 500>;
+using rectangle_d = distribution::rect_n<1, 0, 0, 400, 400>;
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
     node_color,                         color,
