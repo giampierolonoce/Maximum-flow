@@ -41,12 +41,6 @@ namespace tags {
     struct capacity_field {};
     struct residual_capacity_field {};
 
-    //fields of incoming capacities
-    struct incoming_residual_capacity_field {};
-
-    //fields of distances
-    struct distance_from_source_field{};
-    //struct distance_to_sink_field{};
 
     struct node_distance_from_source{};
     struct node_distance_to_sink{};
@@ -82,40 +76,33 @@ real_t min(field<real_t> input){
     return tmp;
 }
 
-FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>& graph){ CODE
+FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>&& graph){ CODE
 
     return nbr(CALL, b?field<real_t>(0.0):field<real_t>(INF), [&](field<real_t> distances){
-            real_t& self = mod_self(CALL, distances);
+            real_t s = self(CALL, distances);
             
             field<real_t> tmp = map_hood([&](real_t d, real_t g){
                 return g>0 ? d : INF;
             }, distances, graph);
             real_t m = min(tmp);
-
-// funziona abbastanza, ma quando la rete è intricata, il flusso rimane instabile vicino alla sorgente
-           /* self = b
-                ? 0.0
-                : self> m ? m+1: INF;
-                */
-
-       
              
                                         
             return make_tuple(distances, field<real_t>(b
-                ? 0.0
-                : self> m ? m+1: INF));
+                                                        ? 0.0
+                                                        : s> m 
+                                                            ? m+1
+                                                            : INF));
     });
 }
 
 FUN field<real_t> capacity(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
-    //we want  that, for every couple of neighbours, capacity is nonzero for at most one direction
     // ? id-node.uid:0
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
 }
 
 
-FUN field<real_t> residual_capacity_hood(ARGS, field<real_t> const& flow){ CODE
+FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
     return capacity(CALL) - flow;
 }
 
@@ -123,8 +110,8 @@ FUN field<real_t> incoming(ARGS, field<real_t>&& graph){ CODE
     return nbr(CALL, graph);
 }
 
-FUN field<real_t> incoming_residual_capacity_hood(ARGS, field<real_t> const& flow){ CODE
-    return incoming(CALL, residual_capacity_hood(CALL, flow));
+FUN field<real_t> incoming_residual_capacity(ARGS, field<real_t> flow){ CODE
+    return incoming(CALL, residual_capacity(CALL, flow));
 }
 
 FUN real_t excess(ARGS, field<real_t> flow){ CODE
@@ -138,15 +125,79 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
                     :sum( flow);
 }
 
-FUN bool source_like(ARGS, field<real_t> flow){ CODE
+FUN bool is_source_like(ARGS, field<real_t> flow){ CODE
     return excess(CALL, flow)<0;
 }
 
-FUN bool sink_like(ARGS, field<real_t> flow){ CODE
+FUN bool is_sink_like(ARGS, field<real_t> flow){ CODE
     return excess(CALL, flow)>0;
 }
 
+FUN field<real_t> from_source_field(ARGS, field<real_t> flow){ CODE
+    return distance_hood(CALL, is_source_like(CALL, flow), incoming_residual_capacity(CALL, flow));
+}
 
+FUN real_t from_source(ARGS, field<real_t> flow){ CODE
+    return self(CALL, from_source_field(CALL, flow));
+}
+
+FUN field<real_t> to_sink_field(ARGS, field<real_t> flow){ CODE
+    return distance_hood(CALL, is_sink_like(CALL, flow), residual_capacity(CALL, flow));
+}
+
+FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
+    return self(CALL, to_sink_field(CALL, flow));
+}
+
+
+FUN field<real_t> update_flow(ARGS){ CODE
+    return nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
+        //_n stands for "name"
+            
+            bool is_source_like_n = is_source_like(CALL, flow);
+            bool is_sink_like_n = is_sink_like(CALL, flow);
+
+            field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
+            field<real_t> incoming_residual_capacity_n = incoming_residual_capacity(CALL, flow);
+
+            field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
+            field<real_t> from_source_field_n = from_source_field(CALL, flow);
+            real_t to_sink_n = to_sink(CALL, flow);
+            real_t from_source_n = from_source(CALL, flow);
+
+                
+                field<real_t> flow_increment(0.0);
+                real_t e = excess(CALL, flow);
+
+                if(to_sink_n!= INF  && e<0){
+                    flow_increment = map_hood([&](real_t d, real_t r){
+                                        real_t a = 0.0;
+                                        if(e<0 && d == to_sink_n-1){
+                                            a = std::min(r, -e);
+                                            e+= a;
+                                        }
+                                        return a;
+                                    },to_sink_field_n, residual_capacity_n);
+                
+                }
+                if(to_sink_n==INF && e<0){
+                    flow_increment += map_hood([&](real_t f){
+                        real_t a = 0.0;
+                        if(e<0 && f<0){
+                            a = std::min(-f, -e);
+                            e += a;
+                        }
+                        return a;
+                    }, flow); 
+                }
+    
+
+                flow -= nbr(CALL, flow_increment);
+
+            
+        return make_tuple(flow, -flow);
+    });
+}
 
 
 
@@ -163,14 +214,11 @@ MAIN() {
     field<real_t>& capacity_ = node.storage(capacity_field{});
     field<real_t>& flow_ = node.storage(flow_field{});
     field<real_t>& residual_capacity_ = node.storage(residual_capacity_field{});
-    field<real_t>& incoming_residual_capacity_ = node.storage(incoming_residual_capacity_field{});
-    real_t& from_source = node.storage(node_distance_from_source{});
-    real_t& to_sink = node.storage(node_distance_to_sink{});
+    real_t& from_source_ = node.storage(node_distance_from_source{});
+    real_t& to_sink_ = node.storage(node_distance_to_sink{});
     real_t& excess_ = node.storage(node_excess{});
-    field<real_t>& from_source_field = node.storage(distance_from_source_field{});
-    //field<real_t>& to_sink_field = node.storage(distance_to_sink_field{});
-    bool& is_source_like = node.storage(node_is_source_like{});
-    bool& is_sink_like = node.storage(node_is_sink_like{});
+    bool& is_source_like_ = node.storage(node_is_source_like{});
+    bool& is_sink_like_ = node.storage(node_is_sink_like{});
 
 
         // usage of node storage
@@ -187,84 +235,21 @@ MAIN() {
 
     capacity_ = capacity(CALL);
 
-    flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
-
-            
-            is_source_like = source_like(CALL, flow);
-            is_sink_like = sink_like(CALL, flow);
-
-            field<real_t> residual_capacity = residual_capacity_hood(CALL, flow);
-            field<real_t> incoming_residual_capacity = incoming_residual_capacity_hood(CALL, flow);
-
-            from_source_field = distance_hood(CALL, is_source_like, incoming_residual_capacity);
-            from_source = self(CALL, from_source_field);
-
-
-            to_sink = nbr(CALL, is_sink_like?0.0:INF , [&](field<real_t> distances){
-
-                real_t& self = mod_self(CALL, distances);
-
-                field<real_t> tmp = map_hood([&](real_t d, real_t r, real_t i){
-                    return  i>0 && d<0
-                                ? -1
-                                : r>0 
-                                    ? d 
-                                    : INF;
-                }, distances, residual_capacity, incoming_residual_capacity);
-                real_t m = min(tmp);
-                self = is_sink_like 
-                    ? 0.0
-                    : m<0
-                        ? INF
-                        : self>m
-                            ? m+1
-                            : INF;
-
-                
-                field<real_t> flow_increment(0.0);
-                real_t e = excess(CALL, flow);
-
-                if(self!= INF  && e<0){
-                    flow_increment = map_hood([&](real_t d, real_t r){
-                                        real_t a = 0.0;
-                                        if(e<0 && d == self-1){
-                                            a = std::min(r, -e);
-                                            e+= a;
-                                        }
-                                        return a;
-                                    },distances, residual_capacity);
-                
-                }
-                if(self==INF && e<0){
-                    flow_increment += map_hood([&](real_t f){
-                        real_t a = 0.0;
-                        if(e<0 && f<0){
-                            a = std::min(-f, -e);
-                            e += a;
-                        }
-                        return a;
-                    }, flow); 
-                }
-
-                flow -= nbr(CALL, flow_increment);
-                
-                return self;
-            });
-
-            
-        return make_tuple(flow, -flow);
-    });
+    flow_ = update_flow(CALL);
     
-    residual_capacity_ = residual_capacity_hood(CALL, flow_);
-    incoming_residual_capacity_ = incoming_residual_capacity_hood(CALL, flow_ );
+    residual_capacity_ = residual_capacity(CALL, flow_);
+    is_source_like_ = is_source_like(CALL, flow_);
+    is_sink_like_ = is_sink_like(CALL, flow_);
+    from_source_ = from_source(CALL, flow_);
+    to_sink_ = to_sink(CALL, flow_);
     excess_= sum(flow_);
 
 
-    node.storage(node_color{}) =   is_source_like
+    node.storage(node_color{}) =   is_source_like_
                                     ? color(GREEN)
-                                    : is_sink_like
+                                    : is_sink_like_
                                         ? color(RED)
-                                        : from_source!=INF && to_sink!=INF
+                                        : from_source_!=INF && to_sink_!=INF
                                             ?color(YELLOW)
                                             :color(WHITE);
 
@@ -313,10 +298,7 @@ using store_t = tuple_store<
     node_excess,                        real_t,
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
-    residual_capacity_field,            field<real_t>,
-    incoming_residual_capacity_field,   field<real_t>,
-    distance_from_source_field,         field<real_t>
-    //distance_to_sink_field,             field<real_t>
+    residual_capacity_field,            field<real_t>
 
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
