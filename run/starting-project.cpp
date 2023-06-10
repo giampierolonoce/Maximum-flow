@@ -134,7 +134,13 @@ real_t sum(field<real_t>& input){
     return tmp;
 }
 
-//
+/*
+Function that monitors the ability of a node to push or receive flow.
+Strictly negative excess means that a node receives more flow in ingress so it can push some.
+Source is always able to push flow.
+Strictly positive excess means that a node pushes more flow so it has to receive some.
+Sink is always ready to receive flow.
+*/
 FUN real_t excess(ARGS, field<real_t> flow){ CODE
 
     bool is_source = node.uid==0;
@@ -146,30 +152,38 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
                     :sum( flow);
 }
 
+
+// We call source-like a node that has to push flow
 FUN bool is_source_like(ARGS, field<real_t> flow){ CODE
     return excess(CALL, flow)<0;
 }
 
+// We call sink-like a node that has to receive flow
 FUN bool is_sink_like(ARGS, field<real_t> flow){ CODE
     return excess(CALL, flow)>0;
 }
 
+// Returns the field of distances from the closest source-like nodes
 FUN field<real_t> from_source_field(ARGS, field<real_t> flow){ CODE
     return distance_hood(CALL, is_source_like(CALL, flow), incoming_residual_capacity(CALL, flow));
 }
 
+// Returns the distance from the closest source-like node
 FUN real_t from_source(ARGS, field<real_t> flow){ CODE
     return self(CALL, from_source_field(CALL, flow));
 }
 
+// Returns the field of distances to the closest sink-like nodes
 FUN field<real_t> to_sink_field(ARGS, field<real_t> flow){ CODE
     return distance_hood(CALL, is_sink_like(CALL, flow), residual_capacity(CALL, flow));
 }
 
+// Returns the distance to the closest sink-like node
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     return self(CALL, to_sink_field(CALL, flow));
 }
 
+// Returns the increment of flow per round
 FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
     // _n stands for "name"
     
@@ -180,6 +194,8 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
 
     real_t excess_n = excess(CALL, flow);
 
+    // In this case we push flow along minimal admissible paths, 
+    //until we have flow in ingress to push forward
     if(to_sink_n!= INF  && excess_n<0){
         return map_hood([&](real_t d, real_t r){
                                         real_t a = 0.0;
@@ -190,6 +206,8 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
                                         return a;
                                     },to_sink_field_n, residual_capacity_n);
     }
+    // In this case the node realizes to not be anymore in an admissible path 
+    // and so we have to push back some flow
     else if(excess_n<0){
         return map_hood([&](real_t f){
                         real_t a = 0.0;
@@ -200,11 +218,13 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
                         return a;
                     }, flow); 
     }
+    // Nodes that don't have flow to push, don't increment flow.
     else return field<real_t>(0.0);
                 
 }
 
 
+//Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS){ CODE
     return nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
         field<real_t> up_flow = flow - nbr(CALL, flow_increment(CALL, flow));
@@ -223,7 +243,7 @@ MAIN() {
     // import tag names in the local scope.
     using namespace tags;
 
-    //references
+    // References
     field<real_t>& capacity_ = node.storage(capacity_field{});
     field<real_t>& flow_ = node.storage(flow_field{});
     field<real_t>& residual_capacity_ = node.storage(residual_capacity_field{});
@@ -234,9 +254,10 @@ MAIN() {
     bool& is_sink_like_ = node.storage(node_is_sink_like{});
 
 
-        // usage of node storage
+    // Usage of node storage
     node.storage(node_size{}) = 10;
    
+
     bool is_source = node.uid==0;
     bool is_sink = node.uid == NODE_NUM-1;
 
@@ -246,18 +267,24 @@ MAIN() {
                                         ? shape::tetrahedron
                                         : shape::sphere;
 
-    capacity_ = capacity(CALL);
-
+    // This is the only structure that node requires to manage
     flow_ = update_flow(CALL);
     
+    
+    // These other structures are just aimed at monitoring the behaviour of system
+    capacity_ = capacity(CALL);
     residual_capacity_ = residual_capacity(CALL, flow_);
     is_source_like_ = is_source_like(CALL, flow_);
     is_sink_like_ = is_sink_like(CALL, flow_);
     from_source_ = from_source(CALL, flow_);
     to_sink_ = to_sink(CALL, flow_);
+    // In this structurre we monitor how much flow source pushes and
+    // how much flow sink receives. Hopefully they're equal in absolute module
     excess_= sum( flow_);
 
-
+    // Nodes that have flow to push are GREEN; those that need to receive flow are RED;
+    // Nodes that guess to be part of an admissible path from a source-like to a sink-like
+    // are YELLOW; other nodes are WHITE.
     node.storage(node_color{}) =   is_source_like_
                                     ? color(GREEN)
                                     : is_sink_like_
@@ -265,8 +292,6 @@ MAIN() {
                                         : from_source_!=INF && to_sink_!=INF
                                             ?color(YELLOW)
                                             :color(WHITE);
-
-   //node.velocity() = -node.position()/300;
 }
 //! @brief Export types used by the main function.
 FUN_EXPORT main_t = export_list<device_t, field<real_t>, real_t, bool >;
