@@ -41,15 +41,15 @@ const size_t dim = 2;
 
 
 /*
-In the description of the algorithm, graphs on the set of devices will be identified with fields of reals.
-As the latter may be seen as the local view of the former: 
-if  d1 is a device, d2  neighbour of d1 and the field F in d1  has value v nonzero in d2,
-then we say that the graph associated with F has an arc from d1 to d2 with weight v.
+In the description of the algorithm, weighted directed graphs on the set of devices will be 
+identified with fields of reals:
+if  d1 is a device, d2 a neighbour of d1 and the field F in d1  has value w nonzero in d2,
+then we say that the graph associated with F has an arc from d1 to d2 with weight w.
 
-This algorithm is inspired to the Ford–Fulkerson method: as long as there is an admissible path 
-from source to sink in the residual graph, we push flow along the path.
-We detect the presence of such paths simply by considering the distances from source and to sink
-along the residual graph.
+This algorithm is inspired to the Ford–Fulkerson method: as long as there is an admissible 
+path from source to sink in the residual graph, we push flow along the path.
+We detect the presence of such paths simply by considering the distances from source and 
+to sink along the residual graph.
 If a node has both finite distance from source and finite distance to sink, then there is an
 admissible path passing through it.
 */
@@ -70,10 +70,11 @@ FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>&& graph){ CODE
             }, distances, graph);
             real_t m = min_hood(CALL, tmp);
     /*         
-    our node communicates to neighbours its (guess regarding its) distance to nodes
+    our node communicates to neighbours its (guess regarding the) distance to nodes
     with a certain property. 
     In residual graphs there could be cycles that become disconnected from those nodes.
     Here there's a trick aimed at detecting those cycles. It doesn't work very well.
+    I would need some more time in order to implement a message-efficient solution.
     */
             return make_tuple(distances, field<real_t>(b
                                                         ? 0.0
@@ -278,13 +279,17 @@ MAIN() {
     is_sink_like_ = is_sink_like(CALL, flow_);
     from_source_ = from_source(CALL, flow_);
     to_sink_ = to_sink(CALL, flow_);
-    // In this structurre we monitor how much flow source pushes and
-    // how much flow sink receives. Hopefully they're equal in absolute module
+    /*
+    In this structurre we monitor how much flow source pushes and
+    how much flow sink receives. Hopefully they're equal in absolute module
+    */
     excess_= sum( flow_);
 
-    // Nodes that have flow to push are GREEN; those that need to receive flow are RED;
-    // Nodes that guess to be part of an admissible path from a source-like to a sink-like
-    // are YELLOW; other nodes are WHITE.
+    /*
+    Nodes that have flow to push are GREEN; those that need to receive flow are RED;
+    Nodes that guess to be part of an admissible path from a source-like to a sink-like
+    are YELLOW; other nodes are WHITE.
+    */
     node.storage(node_color{}) =   is_source_like_
                                     ? color(GREEN)
                                     : is_sink_like_
