@@ -15,6 +15,7 @@ namespace tags {
     struct node_color {};
     struct node_size {};
     struct node_shape {};
+    struct node_text {};
 
 
     struct node_is_source_like{};
@@ -22,6 +23,7 @@ namespace tags {
 
     struct flow_field {};
     struct node_excess {};
+    struct out_flow {};
 
     //fields of outgoing capacities
     struct capacity_field {};
@@ -100,6 +102,19 @@ FUN field<real_t> capacity_v1(ARGS){ CODE
 FUN field<real_t> capacity_v2(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
+}
+
+FUN field<int> capacity_v3(ARGS){ CODE
+    field<int> rand_field = map_hood([&](device_t){
+        return node.next_int(10);
+    }, node.nbr_uid());
+    if (node.current_time() > 2) {
+        field<int> stable_rand_field = old(CALL, rand_field, [&](field<int> old){
+            return old;
+        });
+        return stable_rand_field;
+    }
+    return 0;
 }
 
 // Rough method to switch between capacity_v1 and capacity_v2
@@ -256,9 +271,6 @@ MAIN() {
 
 
     // Usage of node storage
-    node.storage(node_size{}) = 10;
-   
-
     bool is_source = node.uid==0;
     bool is_sink = node.uid == NODE_NUM-1;
 
@@ -271,7 +283,10 @@ MAIN() {
     // This is the only structure that node requires to manage
     flow_ = update_flow(CALL);
     
-    
+    node.storage(node_text{}) = to_string(node.uid);
+    node.storage(out_flow{}) = sum_hood(CALL, mux(flow_ > 0, flow_, 0.0), 0.0);
+    node.storage(node_size{}) = 5 + 2*min(node.storage(out_flow{}), 5.0);
+
     // These other structures are just aimed at monitoring the behaviour of system
     capacity_ = capacity(CALL);
     residual_capacity_ = residual_capacity(CALL, flow_);
@@ -299,7 +314,7 @@ MAIN() {
                                             :color(WHITE);
 }
 //! @brief Export types used by the main function.
-FUN_EXPORT main_t = export_list<device_t, field<real_t>, real_t, bool >;
+FUN_EXPORT main_t = export_list<device_t, field<real_t>, real_t, bool, field<int>>;
 
 } // namespace coordination
 
@@ -334,11 +349,13 @@ using store_t = tuple_store<
     node_color,                         color,
     node_size,                          double,
     node_shape,                         shape,
+    node_text,                          std::string,
     node_is_source_like,                bool,
     node_is_sink_like,                  bool,
     node_distance_from_source,          real_t,
     node_distance_to_sink,              real_t,
     node_excess,                        real_t,
+    out_flow,                           real_t,
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
     residual_capacity_field,            field<real_t>
@@ -365,6 +382,8 @@ DECLARE_OPTIONS(list,
     >,
     dimension<dim>, // dimensionality of the space
     connector<connect::fixed<100, 1, dim>>, // connection allowed within a fixed comm range
+    label_text_tag<node_text>, // the text to associate to a node
+    label_size_val<1, 4>,        // the size of the text
     shape_tag<node_shape>, // the shape of a node is read from this tag in the store
     size_tag<node_size>,   // the size  of a node is read from this tag in the store
     color_tag<node_color>  // the color of a node is read from this tag in the store
