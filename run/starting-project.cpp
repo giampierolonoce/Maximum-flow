@@ -5,7 +5,7 @@
 //! Importing the FCPP library.
 #include "lib/fcpp.hpp"
 
-const int NODE_NUM = 100;
+const int NODE_NUM = 136;
 
 namespace fcpp {
 
@@ -58,25 +58,14 @@ admissible path passing through it.
   us which distance. Hence this function returns a field type.
 */
 FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>&& graph){ CODE
+    //return nbr(CALL, b?0.0:INF, abf_distance(CALL, b, [&](){return mux(graph>0, 1.0, INF);}));
 
     return nbr(CALL, b?field<real_t>(0.0):field<real_t>(INF), [&](field<real_t> distances){
-            real_t s = self(CALL, distances);
             
+            real_t m = min_hood(CALL, mux(graph>0, distances, INF));
 
-            field<real_t> tmp = map_hood([&](real_t d, real_t g){
-                return g>0 ? d : INF;
-            }, distances, graph);
-            real_t m = min_hood(CALL, tmp);
-    /*         
-    our node communicates to neighbours its (guess regarding the) distance to nodes
-    with a certain property. 
-    In residual graphs there could be cycles that become disconnected from those nodes.
-    Here there's a trick aimed at detecting those cycles. It doesn't work very well.
-    I would need some more time in order to implement a message-efficient solution.
-    */
-            return make_tuple(distances, field<real_t>(b
-                                                        ? 0.0
-                                                        : m+1));
+            return make_tuple(distances, field<real_t>(b? 0.0: m+1));
+                                                        
     });
 }
 
@@ -99,22 +88,14 @@ FUN field<real_t> capacity_v2(ARGS){ CODE
 }
 
 FUN field<int> capacity_v3(ARGS){ CODE
-    field<int> rand_field = map_hood([&](device_t){
-        return node.next_int(10);
-    }, node.nbr_uid());
-    if (node.current_time() > 2) {
-        field<int> stable_rand_field = old(CALL, rand_field, [&](field<int> old){
-            return old;
-        });
-        return stable_rand_field;
-    }
-    return 0;
+    field<device_t> ids = nbr_uid(CALL);
+    return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:node.uid-id;}, ids);
 }
 
-// Rough method to switch between capacity_v1 and capacity_v2
+// Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
-    //return capacity_v1(CALL);
-    return capacity_v1(CALL);
+    
+    return capacity_v3(CALL);
 }
 
 
