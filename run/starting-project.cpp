@@ -15,7 +15,6 @@ namespace tags {
     struct node_color {};
     struct node_size {};
     struct node_shape {};
-    struct node_text {};
 
 
     struct node_is_source_like{};
@@ -23,14 +22,11 @@ namespace tags {
 
     struct flow_field {};
     struct node_excess {};
-    struct out_flow {};
 
     //fields of outgoing capacities
     struct capacity_field {};
     struct residual_capacity_field {};
 
-
-    struct node_distance_from_source{};
     struct node_distance_to_sink{};
 
 }
@@ -80,9 +76,7 @@ FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>&& graph){ CODE
     */
             return make_tuple(distances, field<real_t>(b
                                                         ? 0.0
-                                                        : s> m 
-                                                            ? m+1
-                                                            : INF));
+                                                        : m+1));
     });
 }
 
@@ -120,24 +114,14 @@ FUN field<int> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacity_v1 and capacity_v2
 FUN field<real_t> capacity(ARGS){ CODE
     //return capacity_v1(CALL);
-    return capacity_v2(CALL);
+    return capacity_v1(CALL);
 }
 
 
 // Usual definition for the residual graph. Notice that it has only nonnegative weights.
 // As already mentioned, it can have cycles.
 FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
-    return capacity(CALL) - flow;
-}
-
-//Reverse edges in a graph
-FUN field<real_t> incoming(ARGS, field<real_t>&& graph){ CODE
-    return nbr(CALL, graph);
-}
-
-// Reverse the residual graph
-FUN field<real_t> incoming_residual_capacity(ARGS, field<real_t> flow){ CODE
-    return incoming(CALL, residual_capacity(CALL, flow));
+    return mux(flow<0, capacity(CALL), capacity(CALL) - flow);
 }
 
 //This is just another function to sum up the values in a field
@@ -177,16 +161,6 @@ FUN bool is_source_like(ARGS, field<real_t> flow){ CODE
 // We call sink-like a node that has to receive flow
 FUN bool is_sink_like(ARGS, field<real_t> flow){ CODE
     return excess(CALL, flow)>0;
-}
-
-// Returns the field of distances from the closest source-like nodes
-FUN field<real_t> from_source_field(ARGS, field<real_t> flow){ CODE
-    return distance_hood(CALL, is_source_like(CALL, flow), incoming_residual_capacity(CALL, flow));
-}
-
-// Returns the distance from the closest source-like node
-FUN real_t from_source(ARGS, field<real_t> flow){ CODE
-    return self(CALL, from_source_field(CALL, flow));
 }
 
 // Returns the field of distances to the closest sink-like nodes
@@ -263,7 +237,6 @@ MAIN() {
     field<real_t>& capacity_ = node.storage(capacity_field{});
     field<real_t>& flow_ = node.storage(flow_field{});
     field<real_t>& residual_capacity_ = node.storage(residual_capacity_field{});
-    real_t& from_source_ = node.storage(node_distance_from_source{});
     real_t& to_sink_ = node.storage(node_distance_to_sink{});
     real_t& excess_ = node.storage(node_excess{});
     bool& is_source_like_ = node.storage(node_is_source_like{});
@@ -283,16 +256,13 @@ MAIN() {
     // This is the only structure that node requires to manage
     flow_ = update_flow(CALL);
     
-    node.storage(node_text{}) = to_string(node.uid);
-    node.storage(out_flow{}) = sum_hood(CALL, mux(flow_ > 0, flow_, 0.0), 0.0);
-    node.storage(node_size{}) = 5 + 2*min(node.storage(out_flow{}), 5.0);
+    node.storage(node_size{}) = 8;
 
     // These other structures are just aimed at monitoring the behaviour of system
     capacity_ = capacity(CALL);
     residual_capacity_ = residual_capacity(CALL, flow_);
     is_source_like_ = is_source_like(CALL, flow_);
     is_sink_like_ = is_sink_like(CALL, flow_);
-    from_source_ = from_source(CALL, flow_);
     to_sink_ = to_sink(CALL, flow_);
     /*
     In this structurre we monitor how much flow source pushes and
@@ -309,9 +279,7 @@ MAIN() {
                                     ? color(GREEN)
                                     : is_sink_like_
                                         ? color(RED)
-                                        : from_source_!=INF && to_sink_!=INF
-                                            ?color(YELLOW)
-                                            :color(WHITE);
+                                        : color(BLACK);
 }
 //! @brief Export types used by the main function.
 FUN_EXPORT main_t = export_list<device_t, field<real_t>, real_t, bool, field<int>>;
@@ -342,20 +310,17 @@ using round_s = sequence::periodic<
 using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
-//! @brief The distribution of initial node positions (random in a 500x500 square).
-using rectangle_d = distribution::rect_n<1, 0, 0, 500, 500>;
+//! @brief The distribution of initial node positions.
+using rectangle_d = distribution::rect_n<1, 0, 0, 420, 420>;
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
     node_color,                         color,
     node_size,                          double,
     node_shape,                         shape,
-    node_text,                          std::string,
     node_is_source_like,                bool,
     node_is_sink_like,                  bool,
-    node_distance_from_source,          real_t,
     node_distance_to_sink,              real_t,
     node_excess,                        real_t,
-    out_flow,                           real_t,
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
     residual_capacity_field,            field<real_t>
@@ -382,7 +347,7 @@ DECLARE_OPTIONS(list,
     >,
     dimension<dim>, // dimensionality of the space
     connector<connect::fixed<100, 1, dim>>, // connection allowed within a fixed comm range
-    label_text_tag<node_text>, // the text to associate to a node
+    //label_text_tag<node_text>, // the text to associate to a node
     label_size_val<1, 4>,        // the size of the text
     shape_tag<node_shape>, // the shape of a node is read from this tag in the store
     size_tag<node_size>,   // the size  of a node is read from this tag in the store
