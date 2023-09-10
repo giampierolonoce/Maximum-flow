@@ -95,7 +95,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     
-    return capacity_v3(CALL);
+    return capacity_v2(CALL);
 }
 
 
@@ -156,6 +156,7 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
 
 // Returns the increment of flow per round
 FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
+    using namespace std;
     // _n stands for "name"
     
     field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
@@ -167,11 +168,11 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
 
     // In this case we push flow along minimal admissible paths, 
     //until we have flow in ingress to push forward
-    if(to_sink_n!= INF  && excess_n<0){
+    if(to_sink_n!= INF){
         return map_hood([&](real_t d, real_t r){
                                         real_t a = 0.0;
-                                        if(excess_n<0 && d == to_sink_n-1){
-                                            a = std::min(r, -excess_n);
+                                        if(excess_n<0 && d < to_sink_n){
+                                            a = max(min(r, -excess_n), 0.0);
                                             excess_n+= a;
                                         }
                                         return a;
@@ -179,18 +180,18 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
     }
     // In this case the node realizes to not be anymore in an admissible path 
     // and so we have to push back some flow
-    else if(excess_n<0){
+    else{
         return map_hood([&](real_t f){
                         real_t a = 0.0;
                         if(excess_n<0 && f<0){
-                            a = std::min(-f, -excess_n);
+                            a = max(min(-f, -excess_n), 0.0);
                             excess_n += a;
                         }
                         return a;
                     }, flow); 
     }
     // Nodes that don't have flow to push, don't increment flow.
-    else return field<real_t>(0.0);
+    
                 
 }
 
