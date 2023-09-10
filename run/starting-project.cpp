@@ -5,7 +5,7 @@
 //! Importing the FCPP library.
 #include "lib/fcpp.hpp"
 
-const int NODE_NUM = 136;
+const int NODE_NUM = 300;
 
 namespace fcpp {
 
@@ -15,10 +15,6 @@ namespace tags {
     struct node_color {};
     struct node_size {};
     struct node_shape {};
-
-
-    struct node_is_source_like{};
-    struct node_is_sink_like{};
 
     struct flow_field {};
     struct node_excess {};
@@ -58,9 +54,9 @@ admissible path passing through it.
   us which distance. Hence this function returns a field type.
 */
 FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>&& graph){ CODE
-    //return nbr(CALL, b?0.0:INF, abf_distance(CALL, b, [&](){return mux(graph>0, 1.0, INF);}));
+    return nbr(CALL, b?0.0:INF, abf_distance(CALL, b, [&](){return mux(graph>0, 1.0, INF);}));}
 
-    return nbr(CALL, b?field<real_t>(0.0):field<real_t>(INF), [&](field<real_t> distances){
+    /*return nbr(CALL, b?field<real_t>(0.0):field<real_t>(INF), [&](field<real_t> distances){
             
             real_t m = min_hood(CALL, mux(graph>0, distances, INF));
 
@@ -94,7 +90,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
-    return 1.0;
+    //return 1.0;
     return capacity_v2(CALL);
 }
 
@@ -148,19 +144,10 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 }
 
 
-// We call source-like a node that has to push flow
-FUN bool is_source_like(ARGS, field<real_t> flow){ CODE
-    return excess(CALL, flow)<0;
-}
-
-// We call sink-like a node that has to receive flow
-FUN bool is_sink_like(ARGS, field<real_t> flow){ CODE
-    return excess(CALL, flow)>0;
-}
-
 // Returns the field of distances to the closest sink-like nodes
 FUN field<real_t> to_sink_field(ARGS, field<real_t> flow){ CODE
-    return distance_hood(CALL, is_sink_like(CALL, flow), residual_capacity(CALL, flow));
+    bool is_sink_like = excess(CALL, flow)>0;
+    return nbr(CALL, is_sink_like ?0.0:INF, abf_distance(CALL, is_sink_like, [&](){return mux(residual_capacity(CALL,flow)>0, 1.0, INF);}));
 }
 
 // Returns the distance to the closest sink-like node
@@ -175,40 +162,24 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
     
     field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
 
-    field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
-    real_t to_sink_n = to_sink(CALL, flow);
-
     real_t excess_n = excess(CALL, flow);
 
-    // In this case we push flow along minimal admissible paths, 
-    //until we have flow in ingress to push forward
+    //field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
+    //real_t to_sink_n = to_sink(CALL, flow);
+
+    field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
+    //real_t to_sink_n = abf_distance(CALL, excess_n>0, [&](){return mux(residual_capacity_n>0, 1.0, INF);});
+    real_t to_sink_n = to_sink(CALL, flow);
+    
+
+
     return truncate(mux(
                             to_sink_n!= INF, 
                             mux(to_sink_field_n<to_sink_n, 
                                 residual_capacity_n, 
                                 0.0),
                             -flow
-                        ),-excess_n); 
-    /*if(to_sink_n!= INF){
-        return map_hood([&](real_t d, real_t r){
-                                            real_t a = mux(d<to_sink_n, max(min(r, -excess_n), 0.0), 0.0);
-                                            excess_n+= a;
-                                        return a;
-                                    },to_sink_field_n, residual_capacity_n);
-    }
-    // In this case the node realizes to not be anymore in an admissible path 
-    // and so we have to push back some flow
-    else{
-        return map_hood([&](real_t f){
-                        real_t a = max(min(-f, -excess_n), 0.0);
-                        excess_n += a;
-                        
-                        return a;
-                    }, flow); 
-    }*/
-    // Nodes that don't have flow to push, don't increment flow.
-    
-                
+                        ),-excess_n);              
 }
 
 
@@ -237,8 +208,6 @@ MAIN() {
     field<real_t>& residual_capacity_ = node.storage(residual_capacity_field{});
     real_t& to_sink_ = node.storage(node_distance_to_sink{});
     real_t& excess_ = node.storage(node_excess{});
-    bool& is_source_like_ = node.storage(node_is_source_like{});
-    bool& is_sink_like_ = node.storage(node_is_sink_like{});
 
 
     // Usage of node storage
@@ -259,9 +228,7 @@ MAIN() {
     // These other structures are just aimed at monitoring the behaviour of system
     capacity_ = capacity(CALL);
     residual_capacity_ = residual_capacity(CALL, flow_);
-    is_source_like_ = is_source_like(CALL, flow_);
-    is_sink_like_ = is_sink_like(CALL, flow_);
-    to_sink_ = to_sink(CALL, flow_);
+    to_sink_ = to_sink(CALL,flow_);
     /*
     In this structurre we monitor how much flow source pushes and
     how much flow sink receives. Hopefully they're equal in absolute module
@@ -273,9 +240,10 @@ MAIN() {
     Nodes that guess to be part of an admissible path from a source-like to a sink-like
     are YELLOW; other nodes are WHITE.
     */
-    node.storage(node_color{}) =   is_source_like_
+
+    node.storage(node_color{}) =   excess(CALL, flow_)<0
                                     ? color(GREEN)
-                                    : is_sink_like_
+                                    : excess(CALL,flow_)>0
                                         ? color(RED)
                                         : color(BLACK);
 }
@@ -315,8 +283,6 @@ using store_t = tuple_store<
     node_color,                         color,
     node_size,                          double,
     node_shape,                         shape,
-    node_is_source_like,                bool,
-    node_is_sink_like,                  bool,
     node_distance_to_sink,              real_t,
     node_excess,                        real_t,
     capacity_field,                     field<real_t>,
@@ -364,7 +330,7 @@ int main() {
     //! @brief The network object type (interactive simulator with given options).
     using net_t = component::interactive_simulator<option::list>::net;
     //! @brief The initialisation values (simulation name).
-    auto init_v = common::make_tagged_tuple<option::name>("Exercises");
+    auto init_v = common::make_tagged_tuple<option::name>("Starting Project");
     //! @brief Construct the network object.
     net_t network{init_v};
     //! @brief Run the simulation until exit.
