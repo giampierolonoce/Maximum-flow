@@ -94,7 +94,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
-    
+    return 1.0;
     return capacity_v2(CALL);
 }
 
@@ -113,6 +113,20 @@ real_t sum(field<real_t>& input){
         tmp += it.value();
     }
     return tmp;
+}
+
+field<real_t> truncate(field<real_t>&& inputField, real_t inputValue){
+
+    return map_hood([&](real_t i){
+                                    if(inputValue>0)
+                                    {
+                                        real_t tmp= std::max(std::min(i, inputValue),0.0);
+                                        inputValue-= tmp;
+                                        return tmp;
+                                    }else{
+                                        return 0.0;
+                                    }
+                                    },inputField);
 }
 
 /*
@@ -168,13 +182,17 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
 
     // In this case we push flow along minimal admissible paths, 
     //until we have flow in ingress to push forward
-    if(to_sink_n!= INF){
+    return truncate(mux(
+                            to_sink_n!= INF, 
+                            mux(to_sink_field_n<to_sink_n, 
+                                residual_capacity_n, 
+                                0.0),
+                            -flow
+                        ),-excess_n); 
+    /*if(to_sink_n!= INF){
         return map_hood([&](real_t d, real_t r){
-                                        real_t a = 0.0;
-                                        if(excess_n<0 && d < to_sink_n){
-                                            a = max(min(r, -excess_n), 0.0);
+                                            real_t a = mux(d<to_sink_n, max(min(r, -excess_n), 0.0), 0.0);
                                             excess_n+= a;
-                                        }
                                         return a;
                                     },to_sink_field_n, residual_capacity_n);
     }
@@ -182,14 +200,12 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
     // and so we have to push back some flow
     else{
         return map_hood([&](real_t f){
-                        real_t a = 0.0;
-                        if(excess_n<0 && f<0){
-                            a = max(min(-f, -excess_n), 0.0);
-                            excess_n += a;
-                        }
+                        real_t a = max(min(-f, -excess_n), 0.0);
+                        excess_n += a;
+                        
                         return a;
                     }, flow); 
-    }
+    }*/
     // Nodes that don't have flow to push, don't increment flow.
     
                 
