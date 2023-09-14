@@ -21,7 +21,6 @@ namespace tags {
 
     //fields of outgoing capacities
     struct capacity_field {};
-    struct residual_capacity_field {};
 
     struct node_distance_to_sink{};
 
@@ -157,18 +156,13 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
 
 // Returns the increment of flow per round
 FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
-    using namespace std;
     // _n stands for "name"
     
     field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
 
     real_t excess_n = excess(CALL, flow);
 
-    //field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
-    //real_t to_sink_n = to_sink(CALL, flow);
-
     field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
-    //real_t to_sink_n = abf_distance(CALL, excess_n>0, [&](){return mux(residual_capacity_n>0, 1.0, INF);});
     real_t to_sink_n = to_sink(CALL, flow);
 
     return truncate(mux(
@@ -202,7 +196,6 @@ MAIN() {
     // References
     field<real_t>& capacity_ = node.storage(capacity_field{});
     field<real_t>& flow_ = node.storage(flow_field{});
-    field<real_t>& residual_capacity_ = node.storage(residual_capacity_field{});
     real_t& to_sink_ = node.storage(node_distance_to_sink{});
     real_t& excess_ = node.storage(node_excess{});
 
@@ -224,7 +217,6 @@ MAIN() {
 
     // These other structures are just aimed at monitoring the behaviour of system
     capacity_ = capacity(CALL);
-    residual_capacity_ = residual_capacity(CALL, flow_);
     to_sink_ = to_sink(CALL,flow_);
     /*
     In this structurre we monitor how much flow source pushes and
@@ -283,8 +275,7 @@ using store_t = tuple_store<
     node_distance_to_sink,              real_t,
     node_excess,                        real_t,
     capacity_field,                     field<real_t>,
-    flow_field,                         field<real_t>,
-    residual_capacity_field,            field<real_t>
+    flow_field,                         field<real_t>
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators<
