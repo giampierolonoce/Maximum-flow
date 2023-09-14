@@ -170,8 +170,6 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
     field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
     //real_t to_sink_n = abf_distance(CALL, excess_n>0, [&](){return mux(residual_capacity_n>0, 1.0, INF);});
     real_t to_sink_n = to_sink(CALL, flow);
-    
-
 
     return truncate(mux(
                             to_sink_n!= INF, 
@@ -186,8 +184,7 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
 //Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS){ CODE
     return nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
-        field<real_t> up_flow = flow - nbr(CALL, flow_increment(CALL, flow));
-        return make_tuple(up_flow, -up_flow);
+        return  -flow - nbr(CALL, flow_increment(CALL, -flow));
     });
 }
 
@@ -288,7 +285,6 @@ using store_t = tuple_store<
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
     residual_capacity_field,            field<real_t>
-
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators<
