@@ -24,6 +24,8 @@ namespace tags {
 
     struct node_distance_to_sink{};
 
+    struct out_flow{};
+
 }
 
 //! @brief The maximum communication range between nodes.
@@ -101,7 +103,7 @@ FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
 }
 
 //This is just another function to sum up the values in a field
-real_t sum(field<real_t>& input){
+real_t sum(field<real_t> input){
 
     real_t tmp= 0.0;
     for (details::field_iterator<field<real_t>> it(input); !it.end(); ++it){
@@ -185,9 +187,6 @@ FUN field<real_t> update_flow(ARGS){ CODE
 
 
 
-
-
-
 //! @brief Main function.
 MAIN() {
     // import tag names in the local scope.
@@ -223,6 +222,8 @@ MAIN() {
     how much flow sink receives. Hopefully they're equal in absolute module
     */
     excess_= sum( flow_);
+
+    node.storage(out_flow{})= sum(mux(flow_>0, flow_, 0.0));;
 
     /*
     Nodes that have flow to push are GREEN; those that need to receive flow are RED;
@@ -275,10 +276,12 @@ using store_t = tuple_store<
     node_distance_to_sink,              real_t,
     node_excess,                        real_t,
     capacity_field,                     field<real_t>,
-    flow_field,                         field<real_t>
+    flow_field,                         field<real_t>,
+    out_flow,                   real_t
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
-using aggregator_t = aggregators<
+using aggregator_t = aggregators< 
+    out_flow,                   aggregator::max<real_t>
 >;
 
 //! @brief The general simulation options.
