@@ -235,7 +235,9 @@ MAIN() {
                                     ? color(GREEN)
                                     : excess(CALL,flow_)>0
                                         ? color(RED)
-                                        : color(BLACK);
+                                        : node.storage(out_flow{})>0
+                                            ?color(YELLOW)
+                                            : color(BLACK);
 }
 //! @brief Export types used by the main function.
 FUN_EXPORT main_t = export_list<device_t, field<real_t>, real_t, bool, field<int>>;
