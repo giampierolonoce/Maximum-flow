@@ -17,7 +17,7 @@ namespace tags {
     struct node_shape {};
 
     struct flow_field {};
-    struct node_excess {};
+    struct obstruction {};
 
     //fields of outgoing capacities
     struct capacity_field {};
@@ -91,7 +91,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
-    //return 1.0;
+    return 1.0;
     return capacity_v2(CALL);
 }
 
@@ -196,7 +196,8 @@ MAIN() {
     field<real_t>& capacity_ = node.storage(capacity_field{});
     field<real_t>& flow_ = node.storage(flow_field{});
     real_t& to_sink_ = node.storage(node_distance_to_sink{});
-    real_t& excess_ = node.storage(node_excess{});
+    real_t& obstruction_ = node.storage(obstruction{});
+    real_t& out_flow_ = node.storage(out_flow{});
 
 
     // Usage of node storage
@@ -221,9 +222,14 @@ MAIN() {
     In this structurre we monitor how much flow source pushes and
     how much flow sink receives. Hopefully they're equal in absolute module
     */
-    excess_= sum( flow_);
+    
 
-    node.storage(out_flow{})= sum(mux(flow_>0, flow_, 0.0));;
+    node.storage(out_flow{})= sum(mux(flow_>0, flow_, 0.0));
+
+    
+    obstruction_= to_sink_<INF
+    ? sum(residual_capacity(CALL, flow_))
+    : 0;
 
     /*
     Nodes that have flow to push are GREEN; those that need to receive flow are RED;
@@ -276,14 +282,15 @@ using store_t = tuple_store<
     node_size,                          double,
     node_shape,                         shape,
     node_distance_to_sink,              real_t,
-    node_excess,                        real_t,
+    obstruction,                        real_t,
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
     out_flow,                   real_t
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators< 
-    out_flow,                   aggregator::max<real_t>
+    out_flow,                   aggregator::max<real_t>,
+    obstruction,                aggregator::sum<real_t>
 >;
 
 //! @brief The general simulation options.
