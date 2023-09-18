@@ -34,7 +34,7 @@ Notation:\\
 When it will be convenient, we will treat a directed weighted graph $G$ as a function $G: V\times V\ \rightarrow \mathbb{R_{+}}$, where $V$ is its set of vertices. With a little abuse of notation we will say that the edge from a node $\delta$ to a node $\delta'$ is in $G$, or $(\delta, \delta') \in G$,  in place of $G(\delta, \delta') \not= 0$.\\
 Likewise we will say that a path $\mathfrak{p}$ is contained in $G$, or $\mathfrak{p}\subset G$, if every edge in $\mathfrak{p}$ is in $G$.\\
 
- $\small\bullet\ $ For a flow $\Phi\ , \mathcal{R}_{\Phi}$ will denote the directed weighted graph of residual capacities respect to $\Phi$:
+ $\small\bullet\ $ For a pre-flow $\Phi\ , \mathcal{R}_{\Phi}$ will denote the directed weighted graph of residual capacities respect to $\Phi$:
 \begin{equation}
 \label{eq:residual-capacity}
 \mathcal{R} =
@@ -71,6 +71,16 @@ Hence
 This is what we wanted to prove.
 \end{proof}
 
+For a field-value $f$ in $\delta$ we define $\displaystyle{|f|:=\sum_{\delta\mapsto\delta'}f(\delta')}$.
+
+For a pre-flow $\Phi$ we define 
+\begin{equation*}
+\Vert \Phi \Vert:=\sum_{\substack{\delta \text{ connected to } \\ t    \text{ in } \mathcal{R}_{\Phi}}}|\mathcal{R}_{\Phi}(\delta)|
+\end{equation*}
+
+\begin{lem}
+Let $\Phi$ be a pre-flow. Then  $\Vert \textbf{update}(\Phi) \Vert\ \leq \Vert \Phi \Vert$ with equality holding iff $\textbf{update}(\Phi)=\Phi$.
+\end{lem}
 
 
 \end{document}
