@@ -99,7 +99,7 @@ FUN field<real_t> capacity(ARGS){ CODE
 // Usual definition for the residual graph. Notice that it has only nonnegative weights.
 // As already mentioned, it can have cycles.
 FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
-    return mux(flow<0, capacity(CALL), capacity(CALL) - flow);
+    return mux(flow<0, capacity(CALL)+flow, capacity(CALL) );
 }
 
 //This is just another function to sum up the values in a field
@@ -112,7 +112,7 @@ real_t sum(field<real_t> input){
     return tmp;
 }
 
-field<real_t> truncate(field<real_t>&& inputField, real_t inputValue){
+field<real_t> truncate(field<real_t> inputField, real_t inputValue){
 
     return map_hood([&](real_t i){
                                     if(inputValue>0)
@@ -138,16 +138,16 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
     bool is_source = node.uid==0;
     bool is_sink = node.uid == NODE_NUM-1;
     return is_source
-                ?-INF
+                ?INF
                 :is_sink
-                    ? INF
+                    ? -INF
                     :sum( flow);
 }
 
 
 // Returns the field of distances to the closest sink-like nodes
 FUN field<real_t> to_sink_field(ARGS, field<real_t> flow){ CODE
-    bool is_sink_like = excess(CALL, flow)>0;
+    bool is_sink_like = node.uid == NODE_NUM-1;
     return nbr(CALL, abf_distance(CALL, is_sink_like, [&](){return mux(residual_capacity(CALL,flow)>0, 1.0, INF);}));
 }
 
@@ -180,7 +180,19 @@ FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
 //Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS){ CODE
     return nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
-        return  -flow + flow_increment(CALL, -flow);
+        field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
+
+        real_t excess_n = excess(CALL, flow);
+
+        field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
+        real_t to_sink_n = to_sink(CALL, flow);
+        return  -flow + truncate(mux(
+                            to_sink_n!= INF, 
+                            mux(to_sink_field_n<to_sink_n, 
+                                residual_capacity_n, 
+                                0.0),
+                            flow
+                        ),excess_n);
     });
 }
 
@@ -237,9 +249,9 @@ MAIN() {
     are YELLOW; other nodes are WHITE.
     */
 
-    node.storage(node_color{}) =   excess(CALL, flow_)<0
+    node.storage(node_color{}) =   sum(flow_)<0
                                     ? color(GREEN)
-                                    : excess(CALL,flow_)>0
+                                    : sum(flow_)>0
                                         ? color(RED)
                                         : node.storage(out_flow{})>0
                                             ?color(YELLOW)
