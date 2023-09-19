@@ -91,7 +91,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
-    return 1.0;
+    //return 1.0;
     return capacity_v2(CALL);
 }
 
@@ -99,7 +99,7 @@ FUN field<real_t> capacity(ARGS){ CODE
 // Usual definition for the residual graph. Notice that it has only nonnegative weights.
 // As already mentioned, it can have cycles.
 FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
-    return mux(flow<0, capacity(CALL)+flow, capacity(CALL) );
+    return mux(flow>0, 0.0, capacity(CALL)+flow );
 }
 
 //This is just another function to sum up the values in a field
@@ -249,9 +249,9 @@ MAIN() {
     are YELLOW; other nodes are WHITE.
     */
 
-    node.storage(node_color{}) =   sum(flow_)<0
+    node.storage(node_color{}) =   sum(flow_)>0
                                     ? color(GREEN)
-                                    : sum(flow_)>0
+                                    : sum(flow_)<0
                                         ? color(RED)
                                         : node.storage(out_flow{})>0
                                             ?color(YELLOW)
