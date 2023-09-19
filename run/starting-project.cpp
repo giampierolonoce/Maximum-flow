@@ -91,7 +91,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
-    //return 1.0;
+    return 1.0;
     return capacity_v2(CALL);
 }
 
@@ -147,7 +147,7 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 
 // Returns the field of distances to the closest sink-like nodes
 FUN field<real_t> to_sink_field(ARGS, field<real_t> flow){ CODE
-    bool is_sink_like = node.uid == NODE_NUM-1;
+    bool is_sink_like = (node.uid == NODE_NUM-1) || (node.uid!=0 && sum(flow)<0);
     return nbr(CALL, abf_distance(CALL, is_sink_like, [&](){return mux(residual_capacity(CALL,flow)>0, 1.0, INF);}));
 }
 
