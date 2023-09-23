@@ -26,6 +26,9 @@ namespace tags {
 
     struct out_flow{};
 
+    struct obstruction_condition{};
+
+
 }
 
 //! @brief The maximum communication range between nodes.
@@ -92,7 +95,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     //return 1.0;
-    return capacity_v1(CALL);
+    return capacity_v2(CALL);
 }
 
 
@@ -147,7 +150,7 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 
 // Returns the field of distances to the closest sink-like nodes
 FUN field<real_t> to_sink_field(ARGS, field<real_t> flow){ CODE
-    bool is_sink_like = (node.uid == NODE_NUM-1) || (node.uid!=0 && sum(flow)<0);
+    bool is_sink_like = (node.uid == NODE_NUM-1);
     return nbr(CALL, abf_distance(CALL, is_sink_like, [&](){return mux(residual_capacity(CALL,flow)>0, 1.0, INF);}));
 }
 
@@ -188,6 +191,7 @@ MAIN() {
     real_t& to_sink_ = node.storage(node_distance_to_sink{});
     real_t& obstruction_ = node.storage(obstruction{});
     real_t& out_flow_ = node.storage(out_flow{});
+    int& obstruction_condition_ = node.storage(obstruction_condition{});
 
 
     // Usage of node storage
@@ -217,6 +221,8 @@ MAIN() {
     
 
     node.storage(out_flow{})= sum(mux(flow_>0, flow_, 0.0));
+
+    obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
 
     
     obstruction_= to_sink_<INF
@@ -277,12 +283,14 @@ using store_t = tuple_store<
     obstruction,                        real_t,
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
-    out_flow,                   real_t
+    out_flow,                           real_t,
+    obstruction_condition,              int
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
-    obstruction,                aggregator::sum<real_t>
+    obstruction,                aggregator::sum<real_t>,
+    obstruction_condition,      aggregator::sum<int>
 >;
 
 //! @brief The general simulation options.
