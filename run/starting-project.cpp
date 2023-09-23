@@ -156,30 +156,9 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     return self(CALL, to_sink_field(CALL, flow));
 }
 
-// Returns the increment of flow per round
-FUN field<real_t> flow_increment(ARGS, field<real_t> flow){ CODE
-    // _n stands for "name"
-    
-    field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
-
-    real_t excess_n = excess(CALL, flow);
-
-    field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
-    real_t to_sink_n = to_sink(CALL, flow);
-
-    return truncate(mux(
-                            to_sink_n!= INF, 
-                            mux(to_sink_field_n<to_sink_n, 
-                                residual_capacity_n, 
-                                0.0),
-                            -flow
-                        ),-excess_n);              
-}
-
 
 //Updates the flow adding the increment
-FUN field<real_t> update_flow(ARGS){ CODE
-    return nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
+FUN field<real_t> update_flow(ARGS, field<real_t> flow){ CODE
         field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
 
         real_t excess_n = excess(CALL, flow);
@@ -193,7 +172,6 @@ FUN field<real_t> update_flow(ARGS){ CODE
                                 0.0),
                             flow
                         ),excess_n);
-    });
 }
 
 
@@ -223,7 +201,9 @@ MAIN() {
                                         : shape::sphere;
 
     // This is the only structure that node requires to manage
-    flow_ = update_flow(CALL);
+    flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
+            return update_flow(CALL, flow);
+            });
     
     node.storage(node_size{}) = 8;
 
