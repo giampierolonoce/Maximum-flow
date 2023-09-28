@@ -25,6 +25,7 @@ namespace tags {
     struct node_distance_to_sink{};
 
     struct out_flow{};
+    struct in_flow{};
 
     struct obstruction_condition{};
 
@@ -94,7 +95,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
-    return 1.0;
+    //return 1.0;
     return capacity_v2(CALL);
 }
 
@@ -191,6 +192,7 @@ MAIN() {
     real_t& to_sink_ = node.storage(node_distance_to_sink{});
     real_t& obstruction_ = node.storage(obstruction{});
     real_t& out_flow_ = node.storage(out_flow{});
+    real_t& in_flow_ = node.storage(in_flow{});
     int& obstruction_condition_ = node.storage(obstruction_condition{});
 
 
@@ -220,16 +222,21 @@ MAIN() {
     */
     
 
-    node.storage(out_flow{})= sum(mux(flow_>0, flow_, 0.0));
+    out_flow_= sum(mux(flow_>0, flow_, 0.0));
+    in_flow_= sum(mux(flow_<0, -flow_, 0.0));
 
     obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
 
     
     obstruction_= to_sink_<INF
+    ? 1.0
+    : 0.0;
+
+    /*
+    obstruction_= to_sink_<INF
     ? sum(residual_capacity(CALL, flow_))
     : 0;
 
-    /*
     obstruction_= to_sink_<INF && !is_sink && sum(flow_)<0
     ? obstruction_ + sum(flow_)
     : obstruction_;
@@ -290,11 +297,13 @@ using store_t = tuple_store<
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
     out_flow,                           real_t,
+    in_flow,                            real_t,
     obstruction_condition,              int
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
+    in_flow,                    aggregator::max<real_t>,
     obstruction,                aggregator::sum<real_t>,
     obstruction_condition,      aggregator::sum<int>
 >;
