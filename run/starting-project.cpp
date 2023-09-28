@@ -94,7 +94,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
-    //return 1.0;
+    return 1.0;
     return capacity_v2(CALL);
 }
 
