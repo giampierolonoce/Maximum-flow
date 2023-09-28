@@ -149,11 +149,15 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 
 
 // Returns the field of distances to the closest sink-like nodes
-FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
+FUN field<real_t> to_sink_field(ARGS, field<real_t> flow){ CODE
     bool is_sink_like = (node.uid == NODE_NUM-1);
-    return abf_distance(CALL, is_sink_like, [&](){return mux(residual_capacity(CALL,flow)>0, 1.0, INF);});
+    return nbr(CALL, abf_distance(CALL, is_sink_like, [&](){return mux(residual_capacity(CALL,flow)>0, 1.0, INF);}));
 }
 
+// Returns the distance to the closest sink-like node
+FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
+    return self(CALL, to_sink_field(CALL, flow));
+}
 
 
 //Updates the flow adding the increment
@@ -162,10 +166,11 @@ FUN field<real_t> update_flow(ARGS, field<real_t> flow){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
+        field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
         real_t to_sink_n = to_sink(CALL, flow);
         return  -flow + truncate(mux(
                             to_sink_n!= INF, 
-                            mux(nbr(CALL, to_sink_n) <to_sink_n, 
+                            mux(to_sink_field_n<to_sink_n, 
                                 residual_capacity_n, 
                                 0.0),
                             flow
