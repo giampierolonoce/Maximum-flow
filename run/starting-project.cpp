@@ -227,16 +227,22 @@ MAIN() {
 
     obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
 
-    
+    obstruction_= to_sink_<INF
+    ? sum(residual_capacity(CALL, flow_))
+    : 0;
+
+    /*
     obstruction_= to_sink_<INF
     ? 1.0
     : 0.0;
+    */
 
     /*
     obstruction_= to_sink_<INF
     ? sum(residual_capacity(CALL, flow_))
     : 0;
-
+    */
+    /*
     obstruction_= to_sink_<INF && !is_sink && sum(flow_)<0
     ? obstruction_ + sum(flow_)
     : obstruction_;
