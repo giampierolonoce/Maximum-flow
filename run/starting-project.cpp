@@ -230,6 +230,12 @@ MAIN() {
     : 0;
 
     /*
+    obstruction_= to_sink_<INF && !is_sink && sum(flow_)<0
+    ? obstruction_ + sum(flow_)
+    : obstruction_;
+    */
+
+    /*
     Nodes that have flow to push are GREEN; those that need to receive flow are RED;
     Nodes that guess to be part of an admissible path from a source-like to a sink-like
     are YELLOW; other nodes are WHITE.
