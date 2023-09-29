@@ -96,7 +96,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     //return 1.0;
-    return capacity_v2(CALL);
+    return capacity_v1(CALL);
 }
 
 
@@ -193,7 +193,7 @@ MAIN() {
     real_t& obstruction_ = node.storage(obstruction{});
     real_t& out_flow_ = node.storage(out_flow{});
     real_t& in_flow_ = node.storage(in_flow{});
-    int& obstruction_condition_ = node.storage(obstruction_condition{});
+    real_t& obstruction_condition_ = node.storage(obstruction_condition{});
 
 
     // Usage of node storage
@@ -227,15 +227,23 @@ MAIN() {
 
     obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
 
-    obstruction_= to_sink_<INF
-    ? sum(residual_capacity(CALL, flow_))
-    : 0;
+    obstruction_= is_sink
+    ? std::fabs(sum(flow_))
+    :to_sink_<INF
+        ? obstruction_ + std::fabs(sum(flow_))
+        : obstruction_;
 
+    /*
+    obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
+    */
     /*
     obstruction_= to_sink_<INF
     ? 1.0
     : 0.0;
     */
+   /*obstruction_= to_sink_<INF
+    ? in_flow_
+    : obstruction_;*/
 
     /*
     obstruction_= to_sink_<INF
@@ -304,14 +312,14 @@ using store_t = tuple_store<
     flow_field,                         field<real_t>,
     out_flow,                           real_t,
     in_flow,                            real_t,
-    obstruction_condition,              int
+    obstruction_condition,              real_t
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
     obstruction,                aggregator::sum<real_t>,
-    obstruction_condition,      aggregator::sum<int>
+    obstruction_condition,      aggregator::sum<real_t>
 >;
 
 //! @brief The general simulation options.
