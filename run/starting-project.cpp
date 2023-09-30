@@ -95,7 +95,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
-    //return 1.0;
+    return 1.0;
     return capacity_v3(CALL);
 }
 
@@ -151,15 +151,10 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 }
 
 
-// Returns the field of distances to the closest sink-like nodes
-FUN field<real_t> to_sink_field(ARGS, field<real_t> flow){ CODE
-    bool is_sink_like = (node.uid == NODE_NUM-1);
-    return nbr(CALL, abf_distance(CALL, is_sink_like, [&](){return mux(residual_capacity(CALL,flow)>0, 1.0, INF);}));
-}
-
 // Returns the distance to the closest sink-like node
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
-    return self(CALL, to_sink_field(CALL, flow));
+    bool is_sink_ = (node.uid == NODE_NUM-1);
+    return abf_distance(CALL, is_sink_, [&](){return mux(residual_capacity(CALL,flow)>0, 1.0, INF);});
 }
 
 
@@ -169,15 +164,15 @@ FUN field<real_t> update_flow(ARGS, field<real_t> flow){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
+        
         real_t to_sink_n = to_sink(CALL, flow);
-        field<real_t> tmp = truncate( mux(to_sink_field_n<to_sink_n, 
+        field<real_t> tmp = truncate( mux(nbr(CALL, to_sink_n)<to_sink_n, 
                                 residual_capacity_n, 
                                 0.0 ),
                                 excess_n);
         return  -flow 
-        + tmp
-        + truncate(flow, excess_n - sum(tmp) );
+        + tmp //push forward
+        + truncate(flow, excess_n - sum(tmp) ); //then push backward
 }
 
 
@@ -227,7 +222,9 @@ MAIN() {
     out_flow_= sum(mux(flow_>0, flow_, 0.0));
     in_flow_= sum(mux(flow_<0, -flow_, 0.0));
 
-    obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
+    obstruction_condition_ = node.uid==0 
+    ? to_sink_
+    :0.0;
 
     obstruction_= sum(flow_);
 
@@ -317,7 +314,7 @@ using aggregator_t = aggregators<
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
     obstruction,                aggregator::sum<real_t>,
-    obstruction_condition,      aggregator::sum<real_t>
+    obstruction_condition,      aggregator::max<real_t>
 >;
 
 //! @brief The general simulation options.
