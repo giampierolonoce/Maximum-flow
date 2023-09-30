@@ -171,13 +171,10 @@ FUN field<real_t> update_flow(ARGS, field<real_t> flow){ CODE
 
         field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
         real_t to_sink_n = to_sink(CALL, flow);
-        field<real_t> tmp = truncate(mux(
-                            to_sink_n!= INF, 
-                            mux(to_sink_field_n<to_sink_n, 
+        field<real_t> tmp = truncate( mux(to_sink_field_n<to_sink_n, 
                                 residual_capacity_n, 
-                                0.0),
-                            flow
-                        ),excess_n);
+                                0.0 ),
+                                excess_n);
         return  -flow 
         + tmp
         + truncate(flow, excess_n - sum(tmp) );
@@ -232,11 +229,7 @@ MAIN() {
 
     obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
 
-    obstruction_= is_sink
-    ? std::fabs(sum(flow_))
-    :to_sink_<INF
-        ? obstruction_ + std::fabs(sum(flow_))
-        : obstruction_;
+    obstruction_= sum(flow_);
 
     /*
     obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
