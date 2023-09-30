@@ -77,6 +77,11 @@ The Capacity weighted directed graph is acyclic.
 Currently there are only two (similar) capacity functions proposed. This has capacities 
 equal to 0 or 1.
 */
+FUN field<real_t> capacity_v0(ARGS){ CODE
+    field<device_t> ids = nbr_uid(CALL);
+    return map_hood([&](device_t id){ return node.uid!=id? 1.0 : 0.0 ;}, ids);
+}
+
 FUN field<real_t> capacity_v1(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ;}, ids);
@@ -95,8 +100,8 @@ FUN field<int> capacity_v3(ARGS){ CODE
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
-    return 1.0;
-    return capacity_v3(CALL);
+    
+    return capacity_v0(CALL);
 }
 
 
@@ -226,7 +231,7 @@ MAIN() {
     ? to_sink_
     :0.0;
 
-    obstruction_= sum(flow_);
+    obstruction_= sum(nbr(CALL,flow_));
 
     /*
     obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
