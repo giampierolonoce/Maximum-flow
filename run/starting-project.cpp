@@ -96,7 +96,7 @@ FUN field<int> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     //return 1.0;
-    return capacity_v1(CALL);
+    return capacity_v3(CALL);
 }
 
 
@@ -118,7 +118,8 @@ real_t sum(field<real_t> input){
 
 field<real_t> truncate(field<real_t> inputField, real_t inputValue){
 
-    return map_hood([&](real_t i){
+    return inputValue >= 0
+    ? map_hood([&](real_t i){
                                     if(inputValue>0)
                                     {
                                         real_t tmp= std::max(std::min(i, inputValue),0.0);
@@ -127,7 +128,8 @@ field<real_t> truncate(field<real_t> inputField, real_t inputValue){
                                     }else{
                                         return 0.0;
                                     }
-                                    },inputField);
+                                    },inputField)
+    : -truncate(-inputField, - inputValue);
 }
 
 /*
@@ -169,13 +171,16 @@ FUN field<real_t> update_flow(ARGS, field<real_t> flow){ CODE
 
         field<real_t> to_sink_field_n = to_sink_field(CALL, flow);
         real_t to_sink_n = to_sink(CALL, flow);
-        return  -flow + truncate(mux(
+        field<real_t> tmp = truncate(mux(
                             to_sink_n!= INF, 
                             mux(to_sink_field_n<to_sink_n, 
                                 residual_capacity_n, 
                                 0.0),
                             flow
                         ),excess_n);
+        return  -flow 
+        + tmp
+        + truncate(flow, excess_n - sum(tmp) );
 }
 
 
