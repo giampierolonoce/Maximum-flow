@@ -1,5 +1,5 @@
 \documentclass{article}
-\title{Jump in fabula}
+\title{Tesi}
 \author{}
 \date{}
 \usepackage{amsthm}
@@ -12,6 +12,7 @@
 \usepackage{floatflt}
 \usepackage{amscd}
 \usepackage{epigraph}
+\usepackage{verbatim}
 \theoremstyle{plain}                    
 \newtheorem{teo}{Theorem}[section]      
 \newtheorem{prop}[teo]{Proposizione}    
@@ -25,7 +26,7 @@
 \begin{document}
 Preliminar notes on maximum-flow problem solved in FCPP.\\
 Notation:\\
- $\small\bullet\ \mathcal{C}$ will denote the directed weighted graph of capacities.\\
+ $\small\bullet\ G$ will denote the directed weighted graph of capacities, 
  $s$ and $t$ will denote respectively source and sink of our graph.\\
  %$\small\bullet\ $ For a directed graph $G$, $d_G(\delta, \delta')$ will be the distance from node $\delta$ to node $\delta'$. It takes values in $\mathbb{N}\cup\{\infty \}$.\\
  %$\small\bullet\  $ For a acyclic directed graph $G$, $D_G(\delta, \delta')$ will be the maximum of the lenghts of all paths from node $\delta$ to node $\delta'$.\\
@@ -34,20 +35,21 @@ Notation:\\
 When it will be convenient, we will treat a directed weighted graph $G$ as a function $G: V\times V\ \rightarrow \mathbb{R_{+}}$, where $V$ is its set of vertices. With a little abuse of notation we will say that the edge from a node $\delta$ to a node $\delta'$ is in $G$, or $(\delta, \delta') \in G$,  in place of $G(\delta, \delta') \not= 0$.\\
 Likewise we will say that a path $\mathfrak{p}$ is contained in $G$, or $\mathfrak{p}\subset G$, if every edge in $\mathfrak{p}$ is in $G$.\\
 
- $\small\bullet\ $ For a pre-flow $\Phi\ , \mathcal{R}_{\Phi}$ will denote the directed weighted graph of residual capacities respect to $\Phi$:
+ $\small\bullet\ $ For a field $\Phi\ , \mathcal{R}_{\Phi}$ will denote the directed weighted graph of residual capacities respect to $\Phi$:
 \begin{equation}
 \label{eq:residual-capacity}
 \mathcal{R} =
 \begin{cases}
-    G,& \text{where } \Phi< 0\\
-    G-\Phi,              & \text{otherwise}
+    G+\Phi& \text{where } \Phi< 0\\
+    0              & \text{otherwise}
 \end{cases}
 \end{equation}
+
 $\small\bullet\ $  We define admissible path respect to $\Phi$  a path $\gamma$ in $G$ from source to sink such that 
 \begin{equation*}
 \Phi|_{\gamma} < G|_{\gamma}
 \end{equation*}
-$\small\bullet\ $ We say that a flow $\Phi$ is maximum if there are no admissible paths in $G$ respect to $\Phi$.
+$\small\bullet\ $ We say that a flow $\Phi$ is maximal if there are no admissible paths in $G$ respect to $\Phi$.
 
 \begin{prop}
 $\Phi$ is a maximum flow iff $\mathcal{R}_{\Phi}$ does not have paths from source to sink.
