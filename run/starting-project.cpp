@@ -126,15 +126,10 @@ field<real_t> truncate(field<real_t> inputField, real_t inputValue){
 
     return inputValue >= 0
     ? map_hood([&](real_t i){
-                                    if(inputValue>0)
-                                    {
                                         real_t tmp= std::max(std::min(i, inputValue),0.0);
                                         inputValue-= tmp;
                                         return tmp;
-                                    }else{
-                                        return 0.0;
-                                    }
-                                    },inputField)
+                                    }, inputField)
     : -truncate(-inputField, - inputValue);
 }
 
@@ -165,7 +160,9 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
 
 
 //Updates the flow adding the increment
-FUN field<real_t> update_flow(ARGS, field<real_t> flow){ CODE
+FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
+        mod_other(CALL, flow) = 0.0;
+
         field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
 
         real_t excess_n = excess(CALL, flow);
