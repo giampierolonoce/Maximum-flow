@@ -87,21 +87,23 @@ FUN field<real_t> capacity_v1(ARGS){ CODE
     return map_hood([&](device_t id){ return node.uid<id ;}, ids);
 }
 
-//This capacity funtion has different nonnull capacities.
 FUN field<real_t> capacity_v2(ARGS){ CODE
-    field<device_t> ids = nbr_uid(CALL);
-    return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
-}
-
-FUN field<real_t> capacity_v3(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:node.uid-id;}, ids);
 }
 
+//This capacity funtion has different nonnull capacities.
+FUN field<real_t> capacity_v3(ARGS){ CODE
+    field<device_t> ids = nbr_uid(CALL);
+    return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
+}
+
+
+
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     
-    return capacity_v1(CALL);
+    return capacity_v3(CALL);
 }
 
 
@@ -162,6 +164,7 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
 //Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         
+        //safety conditions
         mod_other(CALL, flow_) = 0.0;
         field<real_t> flow = map_hood([&](real_t f, real_t c){return f>0?f: std::max(f, -c);}, flow_, capacity(CALL));
         
@@ -172,16 +175,12 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t to_sink_n = to_sink(CALL, flow);
 
-        field<real_t> tmp = truncate( mux(nbr(CALL, to_sink_n)<to_sink_n, 
-                                residual_capacity_n, 
-                                0.0 ),
-                                excess_n);
-
-        
+        field<real_t> forward = truncate( (nbr(CALL, to_sink_n)<to_sink_n) * (capacity(CALL) + flow),
+                                     excess_n);
 
         return  -flow 
-        + tmp //push forward
-        + truncate(flow, excess_n - sum(tmp) ); //then push backward
+        + forward //push forward
+        + truncate(flow, excess_n - sum(forward) ); //then push backward
 }
 
 
