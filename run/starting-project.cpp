@@ -93,7 +93,7 @@ FUN field<real_t> capacity_v2(ARGS){ CODE
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
 }
 
-FUN field<int> capacity_v3(ARGS){ CODE
+FUN field<real_t> capacity_v3(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:node.uid-id;}, ids);
 }
@@ -109,7 +109,7 @@ FUN field<real_t> capacity(ARGS){ CODE
 // As already mentioned, it can have cycles.
 FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
     return mux(capacity(CALL)>0, capacity(CALL)+flow, 0.0 );
-    //return mux(flow>0, 0.0, capacity+flow );
+    //return mux(flow>0, 0.0, capacity(CALL)+flow );
 }
 
 //This is just another function to sum up the values in a field
@@ -161,18 +161,21 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
 
 //Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
-        mod_other(CALL, flow) = 0.0;
+        
 
         field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
 
         real_t excess_n = excess(CALL, flow);
 
-        
         real_t to_sink_n = to_sink(CALL, flow);
+        
         field<real_t> tmp = truncate( mux(nbr(CALL, to_sink_n)<to_sink_n, 
                                 residual_capacity_n, 
                                 0.0 ),
                                 excess_n);
+
+        mod_other(CALL, flow) = 0.0;
+
         return  -flow 
         + tmp //push forward
         + truncate(flow, excess_n - sum(tmp) ); //then push backward
