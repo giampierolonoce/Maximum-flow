@@ -101,7 +101,7 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     
-    return capacity_v3(CALL);
+    return capacity_v2(CALL);
 }
 
 
@@ -160,15 +160,16 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
 
 
 //Updates the flow adding the increment
-FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
+FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         
+        field<real_t> flow = map_hood([&](real_t f, real_t c){return f>0?f: std::max(f, -c);}, flow_, capacity(CALL));
 
         field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
 
         real_t excess_n = excess(CALL, flow);
 
         real_t to_sink_n = to_sink(CALL, flow);
-        
+
         field<real_t> tmp = truncate( mux(nbr(CALL, to_sink_n)<to_sink_n, 
                                 residual_capacity_n, 
                                 0.0 ),
@@ -210,7 +211,7 @@ MAIN() {
                                         : shape::sphere;
 
     // This is the only structure that node requires to manage
-    flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
+    flow_ = nbr(CALL, field<real_t>(300.0),[&](field<real_t> flow){
             return update_flow(CALL, flow);
             });
     
