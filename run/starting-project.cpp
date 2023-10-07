@@ -54,28 +54,8 @@ admissible path passing through it.
 */
 
 
-/* All graphs considered here are directed. For this reason we have to implement a
- "distance along graph" function. We also are interested in which direction communicates to
-  us which distance. Hence this function returns a field type.
-*/
-FUN field<real_t> distance_hood(ARGS, bool b, field<real_t>&& graph){ CODE
-    return nbr(CALL, b?0.0:INF, abf_distance(CALL, b, [&](){return mux(graph>0, 1.0, INF);}));}
-
-    /*return nbr(CALL, b?field<real_t>(0.0):field<real_t>(INF), [&](field<real_t> distances){
-            
-            real_t m = min_hood(CALL, mux(graph>0, distances, INF));
-
-            return make_tuple(distances, field<real_t>(b? 0.0: m+1));
-                                                        
-    });
-}
-
-/* Here we implement our rule to assign dynamically the capacities between nodes.
+/* Here we implement our rules to assign dynamically the capacities between nodes.
 These capacities will remain unaffected by the updates in our flow.
-The Capacity weighted directed graph is acyclic.
-
-Currently there are only two (similar) capacity functions proposed. This has capacities 
-equal to 0 or 1.
 */
 FUN field<real_t> capacity_v0(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
@@ -92,7 +72,6 @@ FUN field<real_t> capacity_v2(ARGS){ CODE
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:node.uid-id;}, ids);
 }
 
-//This capacity funtion has different nonnull capacities.
 FUN field<real_t> capacity_v3(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
@@ -110,7 +89,6 @@ FUN field<real_t> capacity(ARGS){ CODE
 // Usual definition for the residual graph. Notice that it has only nonnegative weights.
 // As already mentioned, it can have cycles.
 FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
-    //return mux(capacity(CALL)>0, capacity(CALL)+flow, 0.0 );
     return mux(flow>0, 0.0, capacity(CALL)+flow );
 }
 
@@ -167,6 +145,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         //safety conditions
         mod_other(CALL, flow_) = 0.0;
         field<real_t> flow = map_hood([&](real_t f, real_t c){return f>0?f: std::max(f, -c);}, flow_, capacity(CALL));
+        //
         
 
         field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
@@ -212,29 +191,32 @@ MAIN() {
                                         : shape::sphere;
 
     // This is the only structure that node requires to manage
-    flow_ = nbr(CALL, capacity_v3(CALL),[&](field<real_t> flow){
+    flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
             return update_flow(CALL, flow);
             });
     
     node.storage(node_size{}) = 8;
 
     // These other structures are just aimed at monitoring the behaviour of system
-    capacity_ = capacity(CALL);
+    capacity_ = capacity(CALL);  
     to_sink_ = to_sink(CALL,flow_);
     /*
     In this structurre we monitor how much flow source pushes and
     how much flow sink receives. Hopefully they're equal in absolute module
     */
+
+   real_t st_distance = abf_distance(CALL, is_sink, [&](){return mux(capacity(CALL)-flow_>0, 1.0, INF);});
     
 
     out_flow_= sum(mux(flow_>0, flow_, 0.0));
     in_flow_= sum(mux(flow_<0, -flow_, 0.0));
 
-    obstruction_condition_ = node.uid==0 
-    ? to_sink_
-    :0.0;
 
-    obstruction_= sum(nbr(CALL,flow_));
+    obstruction_condition_ = (is_source)*(st_distance==old(CALL, st_distance))*st_distance;
+
+    obstruction_= to_sink_<INF
+    ? sum(residual_capacity(CALL, flow_))
+    : -sum(residual_capacity(CALL, flow_));
 
     /*
     obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
