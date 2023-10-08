@@ -61,35 +61,38 @@ FUN field<real_t> capacity_v0(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid!=id? 1.0 : 0.0 ;}, ids);
 }
-
+/*
 FUN field<real_t> capacity_v1(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ;}, ids);
 }
+*/
 
 FUN field<real_t> capacity_v2(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:node.uid-id;}, ids);
 }
 
+/*
 FUN field<real_t> capacity_v3(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
 }
-
+*/
 
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     
-    return capacity_v3(CALL);
+    return capacity_v2(CALL);
 }
 
 
 // Usual definition for the residual graph. Notice that it has only nonnegative weights.
 // As already mentioned, it can have cycles.
 FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
-    return mux(flow>0, 0.0, capacity(CALL)+flow );
+    //return mux(flow>0, 0.0, capacity(CALL)+flow );
+    return capacity(CALL)+flow ;
 }
 
 //This is just another function to sum up the values in a field
