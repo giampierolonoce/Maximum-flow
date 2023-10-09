@@ -68,6 +68,7 @@ FUN field<real_t> capacity_v1(ARGS){ CODE
 }
 */
 
+
 FUN field<real_t> capacity_v2(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:node.uid-id;}, ids);
@@ -92,7 +93,7 @@ FUN field<real_t> capacity(ARGS){ CODE
 // As already mentioned, it can have cycles.
 FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
     //return mux(flow>0, 0.0, capacity(CALL)+flow );
-    return capacity(CALL)+flow ;
+    return capacity(CALL)-flow ;
 }
 
 //This is just another function to sum up the values in a field
@@ -138,7 +139,7 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 // Returns the distance to the closest sink-like node
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     bool is_sink_ = (node.uid == NODE_NUM-1);
-    return abf_distance(CALL, is_sink_, [&](){return mux(residual_capacity(CALL,flow)>0, 1.0, INF);});
+    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) - flow>0, 1.0, INF);});
 }
 
 
@@ -149,13 +150,10 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         mod_other(CALL, flow_) = 0.0;
         field<real_t> flow = map_hood([&](real_t f, real_t c){return f>0?f: std::max(f, -c);}, flow_, capacity(CALL));
         //
-        
-
-        field<real_t> residual_capacity_n = residual_capacity(CALL, flow);
 
         real_t excess_n = excess(CALL, flow);
 
-        real_t to_sink_n = to_sink(CALL, flow);
+        real_t to_sink_n = to_sink(CALL, -flow);
 
         field<real_t> forward = truncate( (nbr(CALL, to_sink_n)<to_sink_n) * (capacity(CALL) + flow),
                                      excess_n);
@@ -201,25 +199,28 @@ MAIN() {
     node.storage(node_size{}) = 8;
 
     // These other structures are just aimed at monitoring the behaviour of system
-    capacity_ = capacity(CALL);  
-    to_sink_ = to_sink(CALL,flow_);
+    capacity_ = capacity(CALL);
     /*
     In this structurre we monitor how much flow source pushes and
     how much flow sink receives. Hopefully they're equal in absolute module
     */
 
-   real_t st_distance = abf_distance(CALL, is_sink, [&](){return mux(capacity(CALL)-flow_>0, 1.0, INF);});
+    to_sink_ = to_sink(CALL, flow_);
     
 
     out_flow_= sum(mux(flow_>0, flow_, 0.0));
     in_flow_= sum(mux(flow_<0, -flow_, 0.0));
 
 
-    obstruction_condition_ = (is_source)*(st_distance==old(CALL, st_distance))*st_distance;
+    //obstruction_condition_ = (is_source)*(st_distance==old(CALL, st_distance))*st_distance;
+    //obstruction_condition_ = to_sink_<INF;
 
     obstruction_= to_sink_<INF
-    ? sum(residual_capacity(CALL, flow_))
-    : -sum(residual_capacity(CALL, flow_));
+    ? sum(capacity(CALL) + flow_)
+    : -sum(capacity(CALL) + flow_);
+
+
+    obstruction_condition_ = obstruction_ <= old(CALL, obstruction_);
 
     /*
     obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
@@ -307,7 +308,7 @@ using aggregator_t = aggregators<
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
     obstruction,                aggregator::sum<real_t>,
-    obstruction_condition,      aggregator::max<real_t>
+    obstruction_condition,      aggregator::min<real_t>
 >;
 
 //! @brief The general simulation options.
