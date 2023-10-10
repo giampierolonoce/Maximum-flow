@@ -209,7 +209,7 @@ MAIN() {
 
     real_t to_sink_v2 = to_sink(CALL, old(CALL, flow_));
 
-    real_t to_sink_v3 = to_sink(CALL, -nbr(CALL, flow_));
+    real_t to_sink_v3 = to_sink(CALL, -nbr(CALL, flow_)); 
 
     
 
@@ -227,14 +227,12 @@ MAIN() {
     //eventually true
     //obstruction_condition_ = obstruction_ <= old(CALL, obstruction_);
 
-
-    //always true  
-    //obstruction_condition_ = to_sink_v2<=to_sink_;
-
     //always true
-    //obstruction_condition_ = to_sink_v3<=to_sink_;
+    obstruction_condition_ = to_sink_v3 <= to_sink_v2 && to_sink_v2<=to_sink_;
 
-    obstruction_condition_ = to_sink_v3 <= to_sink_v2;
+
+
+
 
     
     
