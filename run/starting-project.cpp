@@ -85,7 +85,7 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     
-    return capacity_v2(CALL);
+    return capacity_v0(CALL);
 }
 
 
@@ -153,7 +153,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        real_t to_sink_n = to_sink(CALL, -flow);
+        real_t to_sink_n = to_sink(CALL, nbr(CALL,flow));
 
         field<real_t> forward = truncate( (nbr(CALL, to_sink_n)<to_sink_n) * (capacity(CALL) + flow),
                                      excess_n);
@@ -207,9 +207,8 @@ MAIN() {
 
     to_sink_ = to_sink(CALL, flow_);//to_sink(CALL, - nbr(CALL,flow_));
 
-    real_t to_sink_v2 = to_sink(CALL, old(CALL, flow_));
-
-    real_t to_sink_v3 = to_sink(CALL, -nbr(CALL, flow_)); 
+    real_t to_sink_v1 = to_sink(CALL, old(CALL, flow_));
+ 
 
     
 
@@ -228,9 +227,7 @@ MAIN() {
     //obstruction_condition_ = obstruction_ <= old(CALL, obstruction_);
 
     //always true
-    obstruction_condition_ = to_sink_v3 <= to_sink_v2 && to_sink_v2<=to_sink_;
-
-
+    //obstruction_condition_ = to_sink_v1<=to_sink_;
 
 
 
@@ -299,7 +296,7 @@ using aggregator_t = aggregators<
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
     obstruction,                aggregator::sum<real_t>,
-    obstruction_condition,      aggregator::min<real_t>
+    obstruction_condition,      aggregator::max<real_t>
 >;
 
 //! @brief The general simulation options.
