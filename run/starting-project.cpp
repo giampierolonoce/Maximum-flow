@@ -227,7 +227,7 @@ MAIN() {
     //obstruction_condition_ = obstruction_ <= old(CALL, obstruction_);
 
     //always true
-    //obstruction_condition_ = to_sink_v1<=to_sink_;
+    obstruction_condition_ = to_sink_v1<=to_sink_;
 
 
 
@@ -296,7 +296,7 @@ using aggregator_t = aggregators<
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
     obstruction,                aggregator::sum<real_t>,
-    obstruction_condition,      aggregator::max<real_t>
+    obstruction_condition,      aggregator::min<real_t>
 >;
 
 //! @brief The general simulation options.
