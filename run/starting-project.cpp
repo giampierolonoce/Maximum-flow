@@ -205,7 +205,12 @@ MAIN() {
     how much flow sink receives. Hopefully they're equal in absolute module
     */
 
-    to_sink_ = to_sink(CALL, flow_);
+    to_sink_ = to_sink(CALL, flow_);//to_sink(CALL, - nbr(CALL,flow_));
+
+    real_t to_sink_v2 = to_sink(CALL, old(CALL, flow_));
+
+    real_t to_sink_v3 = to_sink(CALL, -nbr(CALL, flow_));
+
     
 
     out_flow_= sum(mux(flow_>0, flow_, 0.0));
@@ -219,32 +224,20 @@ MAIN() {
     ? sum(capacity(CALL) + flow_)
     : -sum(capacity(CALL) + flow_);
 
+    //eventually true
+    //obstruction_condition_ = obstruction_ <= old(CALL, obstruction_);
 
-    obstruction_condition_ = obstruction_ <= old(CALL, obstruction_);
 
-    /*
-    obstruction_condition_ = node.uid==0 && to_sink_==INF && out_flow_>0;
-    */
-    /*
-    obstruction_= to_sink_<INF
-    ? 1.0
-    : 0.0;
-    */
-   /*obstruction_= to_sink_<INF
-    ? in_flow_
-    : obstruction_;*/
+    //always true  
+    //obstruction_condition_ = to_sink_v2<=to_sink_;
 
-    /*
-    obstruction_= to_sink_<INF
-    ? sum(residual_capacity(CALL, flow_))
-    : 0;
-    */
-    /*
-    obstruction_= to_sink_<INF && !is_sink && sum(flow_)<0
-    ? obstruction_ + sum(flow_)
-    : obstruction_;
-    */
+    //always true
+    //obstruction_condition_ = to_sink_v3<=to_sink_;
 
+    obstruction_condition_ = to_sink_v3 <= to_sink_v2;
+
+    
+    
     /*
     Nodes that have flow to push are GREEN; those that need to receive flow are RED;
     Nodes that guess to be part of an admissible path from a source-like to a sink-like
