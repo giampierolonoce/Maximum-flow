@@ -28,21 +28,17 @@ Preliminar notes on maximum-flow problem solved in FCPP.\\
 Notation:\\
  $\small\bullet\ G$ will denote the directed weighted graph of capacities, 
  $s$ and $t$ will denote respectively source and sink of our graph.\\
- %$\small\bullet\ $ For a directed graph $G$, $d_G(\delta, \delta')$ will be the distance from node $\delta$ to node $\delta'$. It takes values in $\mathbb{N}\cup\{\infty \}$.\\
- %$\small\bullet\  $ For a acyclic directed graph $G$, $D_G(\delta, \delta')$ will be the maximum of the lenghts of all paths from node $\delta$ to node $\delta'$.\\
+We will assume that capacities are symmetrical.\\
  $\small\bullet\ $  For a path $\mathfrak{p}$ we will denote with $|\mathfrak{p}|$ its lenght.\\
 
 When it will be convenient, we will treat a directed weighted graph $G$ as a function $G: V\times V\ \rightarrow \mathbb{R_{+}}$, where $V$ is its set of vertices. With a little abuse of notation we will say that the edge from a node $\delta$ to a node $\delta'$ is in $G$, or $(\delta, \delta') \in G$,  in place of $G(\delta, \delta') \not= 0$.\\
-Likewise we will say that a path $\mathfrak{p}$ is contained in $G$, or $\mathfrak{p}\subset G$, if every edge in $\mathfrak{p}$ is in $G$.\\
+Likewise we will say that a path $\mathfrak{p}$ is contained in $G$, or $\mathfrak{p}\subset G$, if every edg                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
 
  $\small\bullet\ $ For a field $\Phi\ , \mathcal{R}_{\Phi}$ will denote the directed weighted graph of residual capacities respect to $\Phi$:
 \begin{equation}
 \label{eq:residual-capacity}
 \mathcal{R} =
-\begin{cases}
-    G+\Phi& \text{where } \Phi< 0\\
-    0              & \text{otherwise}
-\end{cases}
+    G-\Phi
 \end{equation}
 
 $\small\bullet\ $  We define admissible path respect to $\Phi$  a path $\gamma$ in $G$ from source to sink such that 
@@ -52,30 +48,39 @@ $\small\bullet\ $  We define admissible path respect to $\Phi$  a path $\gamma$ 
 $\small\bullet\ $ We say that a flow $\Phi$ is maximal if there are no admissible paths in $G$ respect to $\Phi$.
 
 \begin{prop}
-$\Phi$ is a maximum flow iff $\mathcal{R}_{\Phi}$ does not have paths from source to sink.
+$\Phi$ is a maximum flow iff $\mathcal{R}_{\Phi}$ does not have paths from source to sink.\\ \\ \\ \\
 \end{prop}
-\begin{proof}
-Let's show that a path $\gamma$ in $G$ is admissible iff $\gamma$ is a path in $\mathcal{R}_{\Phi}$. On every edge $e$ in $G$ we have
+
+
+For a field-value $f$ in $\delta$ we define $\displaystyle{|f|:=\sum_{\delta\sim\delta'}f(\delta')}$.
+We now formalize functions involved in the algorithm. Let $\Phi$ be a field and $\delta\sim\delta'$ be  devices, we define $\Phi^*(\delta, \delta'):=\Phi(\delta', \delta)$.
+By co-induction:
 \begin{equation*}
 \begin{split}
-0<{\mathcal{R}_{\Phi}}(e) &\Leftrightarrow
+\Phi_0 &:= \Phi\\
+\mathcal{R}_n&:= \mathcal{R}_{\Phi_n}\\
+e_n(\delta)&:=
 \begin{cases}
-&\Phi(e) \leq 0 < {\mathcal{R}_{\Phi}}(e) = G(e)\ \  \ \text{or} \\
-&0 <  {\mathcal{R}_{\Phi}}(e) = G(e) - \Phi(e)
+\infty &\text{if\ }\delta=s\\
+-\infty &\text{if\ }\delta=t\\
+|\Phi_n(\delta)| &\text{otherwise}
 \end{cases}\\
-&\Leftrightarrow \Phi(e) < G(e) \ \  \text{and}\  \ 0<G(e)
+d_0(\delta)&:=
+\begin{cases} 
+0 &\text{if\ }\delta=t\\
+\infty&\text{otherwise}
+\end{cases}\\
+d_n(\delta)&:=
+\begin{cases}
+0 &\text{if\ }\delta=t\\
+ \mathrm{min}\big\{d_{n-1}(\delta') + 1\ |\  \mathcal{R}_{n-1}(\delta, \delta')>0\big\}&\text{otherwise}
+\end{cases}\\
+I_{n+1}&:= \mathrm{trunc}((G + \Phi^*_n)(d_{n-1}^*<d_n),  e(\Phi_n^*))\\
+\Phi_{n+1}&:= -\Phi_n^* + I_{n+1} + \mathrm{trunc}(\Phi_n^*, e(\Phi_n^*) - |I_{n+1}|)
 \end{split}
 \end{equation*}
-Hence  
-\begin{equation*}
-0\ <\ {\mathcal{R}_{\Phi}}|_{\gamma} \Leftrightarrow\   \ \Phi|_{\gamma} < G|_{\gamma}\  \text{and}\  0< G|_{\gamma}
-\end{equation*}
-This is what we wanted to prove.
-\end{proof}
 
-For a field-value $f$ in $\delta$ we define $\displaystyle{|f|:=\sum_{\delta\mapsto\delta'}f(\delta')}$.
-
-For a pre-flow $\Phi$ we define 
+For a field $\Phi$ we define 
 \begin{equation*}
 \Vert \Phi \Vert:=\sum_{\substack{\delta \text{ connected to } \\ t    \text{ in } \mathcal{R}_{\Phi}}}|\mathcal{R}_{\Phi}(\delta)|
 \end{equation*}
