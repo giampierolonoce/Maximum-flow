@@ -85,7 +85,7 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     
-    return capacity_v2(CALL);
+    return capacity_v0(CALL);
 }
 
 
@@ -155,7 +155,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t to_sink_n = to_sink(CALL, nbr(CALL,flow));
 
-        field<real_t> forward = truncate( (nbr(CALL, to_sink_n)<to_sink_n) * (capacity(CALL) + flow),
+        field<real_t> forward = truncate( (nbr(CALL, to_sink_n)<to_sink_n) * (capacity(CALL) - nbr(CALL,flow)),
                                      excess_n);
 
         return  -flow 
@@ -220,15 +220,16 @@ MAIN() {
     //obstruction_condition_ = (is_source)*(st_distance==old(CALL, st_distance))*st_distance;
     //obstruction_condition_ = to_sink_<INF;
 
-    obstruction_= to_sink_<INF
-    ? sum(capacity(CALL) + flow_)
-    : -sum(capacity(CALL) + flow_);
+    obstruction_=  to_sink_<INF
+            ? sum(capacity(CALL) + flow_)
+            : -sum(capacity(CALL) + flow_)
+
 
     //eventually true
-    //obstruction_condition_ = obstruction_ <= old(CALL, obstruction_);
+    obstruction_condition_ = obstruction_ <= old(CALL, obstruction_);
 
     //always true
-    obstruction_condition_ = to_sink_v1<=to_sink_;
+    //obstruction_condition_ = to_sink_v1<=to_sink_;
 
 
 

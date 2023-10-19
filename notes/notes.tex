@@ -75,11 +75,37 @@ d_n(\delta)&:=
 0 &\text{if\ }\delta=t\\
  \mathrm{min}\big\{d_{n-1}(\delta') + 1\ |\  \mathcal{R}_{n-1}(\delta, \delta')>0\big\}&\text{otherwise}
 \end{cases}\\
-I_{n+1}&:= \mathrm{trunc}((G + \Phi^*_n)\cdot(d_{n-1}^*<d_n),  e(\Phi_n^*))\\
+I_{n+1}&:= \mathrm{trunc}(\mathcal{R}_n\cdot(d_n^*<d_{n+1}),  e(\Phi_n^*))\\
 \Phi_{n+1}&:= -\Phi_n^* + I_{n+1} + \mathrm{trunc}(\Phi_n^*\ ,\  e(\Phi_n^* - I_{n+1}))\\
 X_n&:=\{\delta \ |\ d_n(\delta)=\infty\}
 \end{split}
 \end{equation*}
+
+\begin{lem}
+ Eventually $\{X_n\}_n$ stabilizes to a set of devices $X$.
+\end{lem}
+\begin{proof}
+ %For every device $\delta$ let $\epsilon_\delta$ the first event on $\delta$ such that $d_{\mathrm{round}(\epsilon_\delta)}(\delta) < \infty$, if there's any. Moreover let $\epsilon_0$ be an event in the future of all the $\epsilon_\delta$ and $\bar{n} = \mathrm{round}(\epsilon_0)$. \\
+For every $n\in\mathbb{N}$ let's consider the set $T_n=\{\delta\ |\ \mathrm{dist}_G(\delta, t)\leq n\}$.\\
+We prove by induction that for $\delta\not\in T_n $ we have $d_n(\delta)=\infty$.\\
+Base step: $T_0=\{t\}$, and condition on $d_0$ holds by definition.\\
+Inductive step: suppose that $\forall \delta'\not\in T_{n-1}\ d_{n-1}(\delta')=\infty$ and consider a  $\delta \not\in T_n$. We have  $d_n(\delta)= \mathrm{min}\big\{d_{n-1}(\delta') + 1\ |\  \mathcal{R}_{n-1}(\delta, \delta')>0\big\}$ and since no $\delta'\sim \delta$ is in $T_{n-1}$, condition on $d_n$ holds by inductive hypothesis.\\ \\
+As a consequence, for a $\delta\in  T_n$ 
+\begin{equation*}
+d_n(\delta) =  \underset{\delta'\in T_n}{\mathrm{min}}\big\{d_{n-1}(\delta') + 1\ |\  \mathcal{R}_{n-1}(\delta, \delta')>0\big\}
+\end{equation*}
+ Now we want to show by induction that $\displaystyle{\forall n\  X_n\cap T_n \subseteq X_{n+1} \cap T_{n+1}}$.\\ 
+Base step: $X_0\cap T_0 = \emptyset$ and we're done.\\
+ Inductive step: let  $\delta$ be a device in $X_n\cap T_n$ and $\delta'\in T_n$ such that $\delta'\sim\delta$. \\
+We have $\displaystyle{d_{n-1}(\delta')=\infty\ \lor\ \mathcal{R}_{n-1}(\delta, \delta') = 0}$. If $d_{n-1}(\delta')=\infty$ then $d_n(\delta')=\infty$ by inductive hypothesis. Otherwise let's suppose $d_{n-1}(\delta')<\infty$ and $d_n(\delta')<\infty$ 
+\\ \\ \\.
+\begin{equation*}
+\forall\delta'\sim\delta\ \ \ \mathcal{R}_{n-1}(\delta, \delta')\cdot(d_{n-1}(\delta')<d_{n}(\delta)) = 0
+\end{equation*}
+and thus $I_n(\delta)$ is a zero field-value.
+So we have 
+
+\end{proof}
 
 
 
