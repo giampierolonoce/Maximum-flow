@@ -85,7 +85,7 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     
-    return capacity_v0(CALL);
+    return capacity_v2(CALL);
 }
 
 
@@ -160,8 +160,9 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         return  -flow 
         + forward //push forward
-        + truncate(flow, excess_n - sum(forward) ); //then push backward
+        + truncate(flow, excess(CALL, flow-forward) ); //then push backward
 }
+
 
 
 

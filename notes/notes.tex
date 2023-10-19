@@ -76,19 +76,11 @@ d_n(\delta)&:=
  \mathrm{min}\big\{d_{n-1}(\delta') + 1\ |\  \mathcal{R}_{n-1}(\delta, \delta')>0\big\}&\text{otherwise}
 \end{cases}\\
 I_{n+1}&:= \mathrm{trunc}((G + \Phi^*_n)\cdot(d_{n-1}^*<d_n),  e(\Phi_n^*))\\
-\Phi_{n+1}&:= -\Phi_n^* + I_{n+1} + \mathrm{trunc}(\Phi_n^*\ ,\  e(\Phi_n^*) - |I_{n+1}|)\\
+\Phi_{n+1}&:= -\Phi_n^* + I_{n+1} + \mathrm{trunc}(\Phi_n^*\ ,\  e(\Phi_n^* - I_{n+1}))\\
 X_n&:=\{\delta \ |\ d_n(\delta)=\infty\}
 \end{split}
 \end{equation*}
 
-For a field $\Phi$ we define 
-\begin{equation*}
-\Vert \Phi \Vert:=\sum_{\substack{\delta \text{ connected to } \\ t    \text{ in } \mathcal{R}_{\Phi}}}|\mathcal{R}_{\Phi}(\delta)|
-\end{equation*}
-
-\begin{lem}
-Let $\Phi$ be a pre-flow. Then  $\Vert \textbf{update}(\Phi) \Vert\ \leq \Vert \Phi \Vert$ with equality holding iff $\textbf{update}(\Phi)=\Phi$.
-\end{lem}
 
 
 \end{document}
