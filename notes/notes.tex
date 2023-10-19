@@ -28,7 +28,7 @@ Preliminar notes on maximum-flow problem solved in FCPP.\\
 Notation:\\
  $\small\bullet\ G$ will denote the directed weighted graph of capacities, 
  $s$ and $t$ will denote respectively source and sink of our graph.\\
-We will assume that capacities are symmetrical.\\
+We will assume that capacities are nonnegative and symmetrical.\\
  $\small\bullet\ $  For a path $\mathfrak{p}$ we will denote with $|\mathfrak{p}|$ its lenght.\\
 
 When it will be convenient, we will treat a directed weighted graph $G$ as a function $G: V\times V\ \rightarrow \mathbb{R_{+}}$, where $V$ is its set of vertices. With a little abuse of notation we will say that the edge from a node $\delta$ to a node $\delta'$ is in $G$, or $(\delta, \delta') \in G$,  in place of $G(\delta, \delta') \not= 0$.\\
@@ -75,8 +75,9 @@ d_n(\delta)&:=
 0 &\text{if\ }\delta=t\\
  \mathrm{min}\big\{d_{n-1}(\delta') + 1\ |\  \mathcal{R}_{n-1}(\delta, \delta')>0\big\}&\text{otherwise}
 \end{cases}\\
-I_{n+1}&:= \mathrm{trunc}((G + \Phi^*_n)(d_{n-1}^*<d_n),  e(\Phi_n^*))\\
-\Phi_{n+1}&:= -\Phi_n^* + I_{n+1} + \mathrm{trunc}(\Phi_n^*, e(\Phi_n^*) - |I_{n+1}|)
+I_{n+1}&:= \mathrm{trunc}((G + \Phi^*_n)\cdot(d_{n-1}^*<d_n),  e(\Phi_n^*))\\
+\Phi_{n+1}&:= -\Phi_n^* + I_{n+1} + \mathrm{trunc}(\Phi_n^*\ ,\  e(\Phi_n^*) - |I_{n+1}|)\\
+X_n&:=\{\delta \ |\ d_n(\delta)=\infty\}
 \end{split}
 \end{equation*}
 
