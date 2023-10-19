@@ -222,7 +222,7 @@ MAIN() {
 
     obstruction_=  to_sink_<INF
             ? sum(capacity(CALL) + flow_)
-            : -sum(capacity(CALL) + flow_)
+            : -sum(capacity(CALL) + flow_);
 
 
     //eventually true
