@@ -18,7 +18,8 @@
 \newtheorem{prop}[teo]{Proposizione}    
 \newtheorem{cor}[teo]{Corollary}       
 \newtheorem{lem}[teo]{Lemma}            
-\theoremstyle{definition}               
+\newtheorem{definition}{Definition}    
+\newtheorem{example}{Example}           
 \theoremstyle{remark}                  
 \newtheorem{oss}{Observation}          
 \usepackage[colorlinks=true,linkcolor=blue]{hyperref}
@@ -53,8 +54,33 @@ $\Phi$ is a maximum flow iff $\mathcal{R}_{\Phi}$ does not have paths from sourc
 
 
 For a field-value $f$ in $\delta$ we define $\displaystyle{|f|:=\sum_{\delta\sim\delta'}f(\delta')}$.
-We now formalize functions involved in the algorithm. Let $\Phi$ be a field and $\delta\sim\delta'$ be  devices, we define $\Phi^*(\delta, \delta'):=\Phi(\delta', \delta)$.
-By co-induction:
+We now formalize functions involved in the algorithm.\\
+We define $\Phi^*(\delta, \delta'):=\Phi(\delta', \delta)$. \\
+\begin{definition} Let $\Phi$ be a field with values in $\mathbb{R}$ and let $d$ be  a locally constant field $d$ with values in $\mathbb{N}\cup\{\infty\}$.
+We say that the couple $(\Phi, d)$ is admissible for $G$ if, for all devices $\delta\sim \delta'$,  the following are satisfied:\\
+(i) $ \Phi(\delta, \delta)=0\ \land\ -G\leq\Phi\leq G\ \land\ (\Phi<0\rightarrow \Phi^*\geq 0);$\\
+(ii) $ d(t)=0;$\\
+(iii) $ (d(\delta')<\infty \land d(\delta)=d(\delta')+1) \ \rightarrow\ (\Phi(\delta, \delta')\ <\ G(\delta, \delta')) .$
+\end{definition}
+\begin{example} For a flow $\Phi$,  $(\Phi, \mathrm{dist}_{\mathcal{R}_\Phi }(\cdot, t))$ is admissible.
+\end{example}
+\begin{example} $( 0\ ,\ \delta\not= t \mapsto \infty)$ is admissible.
+\end{example}
+\begin{example} Let  $(\Phi, d)$ be admissible for $G$. If $H$ is a subgraph of $G$ then $(\Phi_{|H}, d_{|H})$ is admissible for $H$.
+\end{example}
+\begin{example} Let  $(\Phi, d)$ be admissible for $G$. If $H$ is a supergraph of $G$  then $(\Phi_H, d_H)$ is admissible for $H$, where $\Phi_H$ is the extension of $\Phi$ with default $0$ and $d_H$ is the extension of $d$ with default $\infty$.
+\end{example}
+
+\begin{prop}
+Let $G$ and $G'$ be two graphs on the set of devices. Suppose that $G$ and $G'$ are compatible, i.e. for all devices $\delta,\ \delta'$ one has \\
+$\displaystyle{(G\not= 0 \ \land\ G'\not= 0)\rightarrow(G=G')}$.\\
+If $(\Phi, d)$ is an admissible couple for $G$, then $((\Phi_{|G\cap G'})_{G'}\ ,\ (\Phi_{|G\cap G'})_{G'})$ is compatible for $G'$.
+\end{prop}
+\begin{proof} (SKETCH) It's a consequence of the two previous examples.
+\end{proof}
+
+\begin{definition}
+Given an admissible couple $(\Phi, d)$ for $G$, we define by co-induction:
 \begin{equation*}
 \begin{split}
 \Phi_0 &:= \Phi\\
@@ -65,21 +91,18 @@ e_n(\delta)&:=
 -\infty &\text{if\ }\delta=t\\
 |\Phi_n(\delta)| &\text{otherwise}
 \end{cases}\\
-d_0(\delta)&:=
-\begin{cases} 
-0 &\text{if\ }\delta=t\\
-\infty&\text{otherwise}
-\end{cases}\\
+d_0&:=d\\
 d_n(\delta)&:=
 \begin{cases}
 0 &\text{if\ }\delta=t\\
  \mathrm{min}\big\{d_{n-1}(\delta') + 1\ |\  \mathcal{R}_{n-1}(\delta, \delta')>0\big\}&\text{otherwise}
 \end{cases}\\
-I_{n+1}&:= \mathrm{trunc}(\mathcal{R}_n\cdot(d_n^*<d_{n+1}),  e(\Phi_n^*))\\
-\Phi_{n+1}&:= -\Phi_n^* + I_{n+1} + \mathrm{trunc}(\Phi_n^*\ ,\  e(\Phi_n^* - I_{n+1}))\\
+I_{n}&:= \mathrm{trunc}((G+\Phi^*_{n-1})\cdot(d_{n-1}^*<d_{n}),  e(\Phi_{n-1}^*))\\
+\Phi_{n}&:= -\Phi_{n-1}^* + I_{n} + \mathrm{trunc}(\Phi_{n-1}^*\ ,\  e(\Phi_{n-1}^* - I_{n}))\\
 X_n&:=\{\delta \ |\ d_n(\delta)=\infty\}
 \end{split}
 \end{equation*}
+\end{definition}
 
 \begin{lem}
  Eventually $\{X_n\}_n$ stabilizes to a set of devices $X$.
@@ -92,12 +115,12 @@ Base step: $T_0=\{t\}$, and condition on $d_0$ holds by definition.\\
 Inductive step: suppose that $\forall \delta'\not\in T_{n-1}\ d_{n-1}(\delta')=\infty$ and consider a  $\delta \not\in T_n$. We have  $d_n(\delta)= \mathrm{min}\big\{d_{n-1}(\delta') + 1\ |\  \mathcal{R}_{n-1}(\delta, \delta')>0\big\}$ and since no $\delta'\sim \delta$ is in $T_{n-1}$, condition on $d_n$ holds by inductive hypothesis.\\ \\
 As a consequence, for a $\delta\in  T_n$ 
 \begin{equation*}
-d_n(\delta) =  \underset{\delta'\in T_n}{\mathrm{min}}\big\{d_{n-1}(\delta') + 1\ |\  \mathcal{R}_{n-1}(\delta, \delta')>0\big\}
+d_n(\delta) =  \underset{\delta'\in T_{n-1}}{\mathrm{min}}\big\{d_{n-1}(\delta') + 1\ |\  \mathcal{R}_{n-1}(\delta, \delta')>0\big\}
 \end{equation*}
  Now we want to show by induction that $\displaystyle{\forall n\  X_n\cap T_n \subseteq X_{n+1} \cap T_{n+1}}$.\\ 
-Base step: $X_0\cap T_0 = \emptyset$ and we're done.\\
- Inductive step: let  $\delta$ be a device in $X_n\cap T_n$ and $\delta'\in T_n$ such that $\delta'\sim\delta$. \\
-We have $\displaystyle{d_{n-1}(\delta')=\infty\ \lor\ \mathcal{R}_{n-1}(\delta, \delta') = 0}$. If $d_{n-1}(\delta')=\infty$ then $d_n(\delta')=\infty$ by inductive hypothesis. Otherwise let's suppose $d_{n-1}(\delta')<\infty$ and $d_n(\delta')<\infty$ 
+Base step: $X_0\cap T_0 = \emptyset$ and we have done.\\
+ Inductive step: let  $\delta$ be a device in $X_n\cap T_n$ and $\delta'\in T_{n-1}$ such that $\delta'\sim\delta$. \\
+We have $\displaystyle{d_{n-1}(\delta')=\infty\ \lor\ \mathcal{R}_{n-1}(\delta, \delta') = 0}$. If $d_{n-1}(\delta')=\infty$ then $d_n(\delta')=\infty$ by inductive hypothesis. Otherwise let's suppose $d_{n-1}(\delta')<\infty\ ,\ \mathcal{R}_{n-1}(\delta, \delta') = 0$ and $d_n(\delta')<\infty$. In this case $e(I_{n}(\delta'))=e(\Phi^*_{n-1}(\delta'  ))$, i.e. 
 \\ \\ \\.
 \begin{equation*}
 \forall\delta'\sim\delta\ \ \ \mathcal{R}_{n-1}(\delta, \delta')\cdot(d_{n-1}(\delta')<d_{n}(\delta)) = 0

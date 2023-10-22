@@ -155,7 +155,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t to_sink_n = to_sink(CALL, nbr(CALL,flow));
 
-        field<real_t> forward = truncate( (nbr(CALL, to_sink_n)<to_sink_n) * (capacity(CALL) - nbr(CALL,flow)),
+        field<real_t> forward = truncate( (nbr(CALL, to_sink_n)<to_sink_n) * (capacity(CALL) + flow),
                                      excess_n);
 
         return  -flow 
