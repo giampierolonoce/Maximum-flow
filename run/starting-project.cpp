@@ -148,7 +148,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         
         //safety conditions
         mod_other(CALL, flow_) = 0.0;
-        field<real_t> flow = map_hood([&](real_t f, real_t c){return f>0?f: std::max(f, -c);}, flow_, capacity(CALL));
+        field<real_t> flow = mux( flow_>0 , flow_, std::max(flow_, -capacity(CALL)));
         //
 
         real_t excess_n = excess(CALL, flow);
