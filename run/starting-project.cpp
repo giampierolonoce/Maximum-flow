@@ -145,17 +145,19 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
 
 //Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
+
+        field<real_t> capacity_n = capacity(CALL);
         
         //safety conditions
         mod_other(CALL, flow_) = 0.0;
-        field<real_t> flow = mux( flow_>0 , flow_, std::max(flow_, -capacity(CALL)));
+        field<real_t> flow = mux( flow_>0 , std::min(flow_, capacity_n), std::max(flow_, -capacity_n));
         //
 
         real_t excess_n = excess(CALL, flow);
 
         real_t to_sink_n = to_sink(CALL, flow);
 
-        field<real_t> forward = truncate( (nbr(CALL, to_sink_n)<to_sink_n) * (capacity(CALL) + flow),
+        field<real_t> forward = truncate( (nbr(CALL, to_sink_n)<to_sink_n) * (capacity_n + flow),
                                      excess_n);
 
         return  -flow 
