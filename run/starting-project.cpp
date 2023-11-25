@@ -139,7 +139,7 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 // Returns the distance to the closest sink-like node
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     bool is_sink_ = (node.uid == NODE_NUM-1);
-    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) - flow>0, 1.0, INF);});
+    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow>0 && flow<= 0, 1.0, INF);});
 }
 
 
@@ -153,7 +153,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        real_t to_sink_n = to_sink(CALL, nbr(CALL,flow));
+        real_t to_sink_n = to_sink(CALL, flow);
 
         field<real_t> forward = truncate( (nbr(CALL, to_sink_n)<to_sink_n) * (capacity(CALL) + flow),
                                      excess_n);
@@ -201,24 +201,17 @@ MAIN() {
 
     // These other structures are just aimed at monitoring the behaviour of system
     capacity_ = capacity(CALL);
+    
+    to_sink_ = to_sink(CALL, flow_);
+
+
     /*
     In this structurre we monitor how much flow source pushes and
     how much flow sink receives. Hopefully they're equal in absolute module
     */
-
-    to_sink_ = to_sink(CALL, flow_);//to_sink(CALL, - nbr(CALL,flow_));
-
-    real_t to_sink_v1 = to_sink(CALL, old(CALL, flow_));
- 
-
-    
-
     out_flow_= sum(mux(flow_>0, flow_, 0.0));
     in_flow_= sum(mux(flow_<0, -flow_, 0.0));
 
-
-    //obstruction_condition_ = (is_source)*(st_distance==old(CALL, st_distance))*st_distance;
-    //obstruction_condition_ = to_sink_<INF;
 
     obstruction_=  to_sink_<INF
             ? sum(capacity(CALL) + flow_)
@@ -227,9 +220,6 @@ MAIN() {
 
     //eventually true
     obstruction_condition_ = obstruction_ <= old(CALL, obstruction_);
-
-    //always true
-    //obstruction_condition_ = to_sink_v1<=to_sink_;
 
 
 
