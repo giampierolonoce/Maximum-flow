@@ -85,7 +85,7 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     
-    return capacity_v1(CALL);
+    return capacity_v0(CALL);
 }
 
 
@@ -203,6 +203,7 @@ MAIN() {
 
     // These other structures are just aimed at monitoring the behaviour of system
     capacity_ = capacity(CALL);
+
     
     to_sink_ = to_sink(CALL, flow_);
 
@@ -214,14 +215,15 @@ MAIN() {
     out_flow_= sum(mux(flow_>0, flow_, 0.0));
     in_flow_= sum(mux(flow_<0, -flow_, 0.0));
 
+    real_t residual = sum(mux(flow_>=0, capacity_-flow_, 0.0));
 
     obstruction_=  to_sink_<INF
-            ? sum(capacity(CALL) + flow_)
-            : -sum(capacity(CALL) + flow_);
+    ? residual
+    : -residual;
 
 
     //eventually true
-    obstruction_condition_ = obstruction_ <= old(CALL, obstruction_);
+    obstruction_condition_ = to_sink_<INF ;
 
 
 
@@ -233,7 +235,7 @@ MAIN() {
     are YELLOW; other nodes are WHITE.
     */
 
-    node.storage(node_color{}) =   sum(flow_)>0
+    node.storage(node_color{}) = sum(flow_)>0
                                     ? color(GREEN)
                                     : sum(flow_)<0
                                         ? color(RED)
@@ -290,7 +292,7 @@ using aggregator_t = aggregators<
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
     obstruction,                aggregator::sum<real_t>,
-    obstruction_condition,      aggregator::min<real_t>
+    obstruction_condition,      aggregator::sum<real_t>
 >;
 
 //! @brief The general simulation options.
