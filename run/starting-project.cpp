@@ -61,12 +61,12 @@ FUN field<real_t> capacity_v0(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid!=id? 1.0 : 0.0 ;}, ids);
 }
-/*
+
 FUN field<real_t> capacity_v1(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ;}, ids);
 }
-*/
+
 
 
 FUN field<real_t> capacity_v2(ARGS){ CODE
@@ -74,18 +74,18 @@ FUN field<real_t> capacity_v2(ARGS){ CODE
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:node.uid-id;}, ids);
 }
 
-/*
+
 FUN field<real_t> capacity_v3(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
 }
-*/
+
 
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     
-    return capacity_v0(CALL);
+    return capacity_v1(CALL);
 }
 
 
@@ -150,7 +150,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         
         //safety conditions
         mod_other(CALL, flow_) = 0.0;
-        field<real_t> flow = mux( flow_>0 , std::min(flow_, capacity_n), std::max(flow_, -capacity_n));
+        field<real_t> flow = mux( flow_>0 , flow_, std::max(flow_, -capacity_n));
         //
 
         real_t excess_n = excess(CALL, flow);
