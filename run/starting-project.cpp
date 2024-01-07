@@ -85,7 +85,7 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
     
-    return capacity_v0(CALL);
+    return capacity_v1(CALL);
 }
 
 
@@ -145,6 +145,7 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
 
 //Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
+        real_t& to_sink_ = node.storage(tags::node_distance_to_sink{});
 
         field<real_t> capacity_n = capacity(CALL);
         
@@ -155,9 +156,9 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        real_t to_sink_n = to_sink(CALL, flow);
+        to_sink_ = to_sink(CALL, flow);
 
-        field<real_t> forward = truncate( (nbr(CALL, to_sink_n)<to_sink_n) * (capacity_n + flow),
+        field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) * (capacity_n + flow),
                                      excess_n);
 
         return  -flow 
@@ -177,7 +178,7 @@ MAIN() {
     // References
     field<real_t>& capacity_ = node.storage(capacity_field{});
     field<real_t>& flow_ = node.storage(flow_field{});
-    real_t& to_sink_ = node.storage(node_distance_to_sink{});
+    real_t& to_sink_ = node.storage(tags::node_distance_to_sink{});
     real_t& obstruction_ = node.storage(obstruction{});
     real_t& out_flow_ = node.storage(out_flow{});
     real_t& in_flow_ = node.storage(in_flow{});
@@ -205,7 +206,7 @@ MAIN() {
     capacity_ = capacity(CALL);
 
     
-    to_sink_ = to_sink(CALL, flow_);
+    //to_sink_ = to_sink(CALL, flow_);
 
 
     /*
