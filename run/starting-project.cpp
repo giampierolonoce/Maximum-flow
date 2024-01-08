@@ -84,15 +84,15 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
+
     
-    return capacity_v1(CALL);
+    return capacity_v3(CALL);
 }
 
 
 // Usual definition for the residual graph. Notice that it has only nonnegative weights.
 // As already mentioned, it can have cycles.
 FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
-    //return mux(flow>0, 0.0, capacity(CALL)+flow );
     return capacity(CALL)-flow ;
 }
 
@@ -161,9 +161,11 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) * (capacity_n + flow),
                                      excess_n);
 
-        return  -flow 
-        + forward //push forward
-        + truncate(flow, excess(CALL, flow-forward) ); //then push backward
+        field<real_t> backward = truncate(flow, excess_n);
+
+        return  -flow + mux(to_sink_<INF, forward, backward);
+        //+ forward //push forward
+        //+ truncate(flow, excess(CALL, flow-forward) ); //then push backward
 }
 
 
