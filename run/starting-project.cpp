@@ -62,10 +62,12 @@ FUN field<real_t> capacity_v0(ARGS){ CODE
     return map_hood([&](device_t id){ return node.uid!=id? 1.0 : 0.0 ;}, ids);
 }
 
+/*
 FUN field<real_t> capacity_v1(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ;}, ids);
 }
+*/
 
 
 
@@ -74,19 +76,19 @@ FUN field<real_t> capacity_v2(ARGS){ CODE
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:node.uid-id;}, ids);
 }
 
-
+/*
 FUN field<real_t> capacity_v3(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
 }
+*/
 
 
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
 
-    
-    return capacity_v3(CALL);
+    return capacity_v2(CALL);
 }
 
 
@@ -139,7 +141,7 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 // Returns the distance to the closest sink-like node
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     bool is_sink_ = (node.uid == NODE_NUM-1);
-    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow>0 && flow<= 0, 1.0, INF);});
+    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow>0, 1.0, INF);});
 }
 
 
@@ -163,9 +165,10 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         field<real_t> backward = truncate(flow, excess_n);
 
-        return  -flow + mux(to_sink_<INF, forward, backward);
-        //+ forward //push forward
-        //+ truncate(flow, excess(CALL, flow-forward) ); //then push backward
+         //old(CALL,old(CALL, to_sink_))==INF && to_sink_<INF; 
+
+        //return  mux(b, field<real_t>(0.0), -flow + mux(to_sink_<INF, forward, backward));
+        return -flow + mux(sum(forward)>0, forward, backward);
 }
 
 
@@ -226,8 +229,10 @@ MAIN() {
 
 
     //eventually true
-    obstruction_condition_ = to_sink_<INF ;
+    //obstruction_condition_ = to_sink_<INF ;
 
+
+    obstruction_condition_ = mux(to_sink_<INF, to_sink_, 0.0);
 
 
     
@@ -295,7 +300,7 @@ using aggregator_t = aggregators<
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
     obstruction,                aggregator::sum<real_t>,
-    obstruction_condition,      aggregator::sum<real_t>
+    obstruction_condition,      aggregator::max<real_t>
 >;
 
 //! @brief The general simulation options.
