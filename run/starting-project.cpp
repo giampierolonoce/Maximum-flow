@@ -5,7 +5,7 @@
 //! Importing the FCPP library.
 #include "lib/fcpp.hpp"
 
-const int NODE_NUM = 300;
+const int NODE_NUM = 157;
 
 namespace fcpp {
 
@@ -88,7 +88,7 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
 
-    return capacity_v2(CALL);
+    return capacity_v0(CALL);
 }
 
 
@@ -138,10 +138,12 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 }
 
 
+
+
 // Returns the distance to the closest sink-like node
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     bool is_sink_ = (node.uid == NODE_NUM-1);
-    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow>0, 1.0, INF);});
+    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) - mux(flow>0, flow, -flow) >0, 1.0, INF);});
 }
 
 
@@ -160,15 +162,15 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         to_sink_ = to_sink(CALL, flow);
 
-        field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) * (capacity_n + flow),
+        field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) * (capacity_n - mux(flow>0, flow, -flow)),
                                      excess_n);
 
         field<real_t> backward = truncate(flow, excess_n);
 
-         //old(CALL,old(CALL, to_sink_))==INF && to_sink_<INF; 
+        field<real_t>& result = node.storage(tags::flow_field{});
+        result = -flow + mux(sum(forward)>0, forward, backward);
 
-        //return  mux(b, field<real_t>(0.0), -flow + mux(to_sink_<INF, forward, backward));
-        return -flow + mux(sum(forward)>0, forward, backward);
+        return result;
 }
 
 
@@ -182,7 +184,6 @@ MAIN() {
 
     // References
     field<real_t>& capacity_ = node.storage(capacity_field{});
-    field<real_t>& flow_ = node.storage(flow_field{});
     real_t& to_sink_ = node.storage(tags::node_distance_to_sink{});
     real_t& obstruction_ = node.storage(obstruction{});
     real_t& out_flow_ = node.storage(out_flow{});
@@ -201,7 +202,7 @@ MAIN() {
                                         : shape::sphere;
 
     // This is the only structure that node requires to manage
-    flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
+    field<real_t> flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
             return update_flow(CALL, flow);
             });
     
@@ -229,10 +230,10 @@ MAIN() {
 
 
     //eventually true
-    //obstruction_condition_ = to_sink_<INF ;
+    obstruction_condition_ = to_sink_<INF ;
 
 
-    obstruction_condition_ = mux(to_sink_<INF, to_sink_, 0.0);
+    //obstruction_condition_ = mux(to_sink_<INF, to_sink_, 0.0);
 
 
     
@@ -281,7 +282,7 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
 //! @brief The distribution of initial node positions.
-using rectangle_d = distribution::rect_n<1, 0, 0, 350, 350>;
+using rectangle_d = distribution::rect_n<1, 0, 0, 600, 700>;
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
     node_color,                         color,
@@ -300,7 +301,7 @@ using aggregator_t = aggregators<
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
     obstruction,                aggregator::sum<real_t>,
-    obstruction_condition,      aggregator::max<real_t>
+    obstruction_condition,      aggregator::sum<real_t>
 >;
 
 //! @brief The general simulation options.
