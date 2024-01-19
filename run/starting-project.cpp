@@ -5,7 +5,7 @@
 //! Importing the FCPP library.
 #include "lib/fcpp.hpp"
 
-const int NODE_NUM = 157;
+const int NODE_NUM = 300;
 
 namespace fcpp {
 
@@ -62,12 +62,12 @@ FUN field<real_t> capacity_v0(ARGS){ CODE
     return map_hood([&](device_t id){ return node.uid!=id? 1.0 : 0.0 ;}, ids);
 }
 
-/*
+
 FUN field<real_t> capacity_v1(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ;}, ids);
 }
-*/
+
 
 
 
@@ -76,19 +76,19 @@ FUN field<real_t> capacity_v2(ARGS){ CODE
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:node.uid-id;}, ids);
 }
 
-/*
+
 FUN field<real_t> capacity_v3(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ? id-node.uid:0;}, ids);
 }
-*/
+
 
 
 
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
 
-    return capacity_v0(CALL);
+    return capacity_v3(CALL);
 }
 
 
@@ -162,7 +162,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         to_sink_ = to_sink(CALL, flow);
 
-        field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) * (capacity_n - mux(flow>0, flow, -flow)),
+        field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) * (capacity_n + flow),
                                      excess_n);
 
         field<real_t> backward = truncate(flow, excess_n);
@@ -282,7 +282,7 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
 //! @brief The distribution of initial node positions.
-using rectangle_d = distribution::rect_n<1, 0, 0, 600, 700>;
+using rectangle_d = distribution::rect_n<1, 0, 0, 400, 400>;
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
     node_color,                         color,
