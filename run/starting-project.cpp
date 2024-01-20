@@ -88,15 +88,9 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
 
-    return capacity_v3(CALL);
+    return capacity_v2(CALL);
 }
 
-
-// Usual definition for the residual graph. Notice that it has only nonnegative weights.
-// As already mentioned, it can have cycles.
-FUN field<real_t> residual_capacity(ARGS, field<real_t> flow){ CODE
-    return capacity(CALL)-flow ;
-}
 
 //This is just another function to sum up the values in a field
 real_t sum(field<real_t> input){
@@ -143,7 +137,23 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 // Returns the distance to the closest sink-like node
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     bool is_sink_ = (node.uid == NODE_NUM-1);
-    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) - mux(flow>0, flow, -flow) >0, 1.0, INF);});
+    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0, 1.0, INF);});
+}
+
+FUN field<real_t> to_sink_v1(ARGS, bool b, field<real_t> graph){ CODE
+    return nbr(CALL, b?field<real_t>(0.0):field<real_t>(INF), [&](field<real_t> distances){
+            real_t s = self(CALL, distances);
+            
+            field<real_t> tmp = map_hood([&](real_t d, real_t g){
+                return g>0 ? d : INF;
+            }, distances, graph);
+            real_t m = min_hood(CALL, tmp);
+    
+
+            return  field<real_t>(b? 0.0: s> m 
+                                            ? m+1
+                                            : s+1);
+    });
 }
 
 
@@ -155,14 +165,15 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         
         //safety conditions
         mod_other(CALL, flow_) = 0.0;
-        field<real_t> flow = mux( flow_>0 , flow_, std::max(flow_, -capacity_n));
+        field<real_t> flow = mux( flow_>0 , flow_, std::max(flow_, -capacity_n)); 
         //
 
         real_t excess_n = excess(CALL, flow);
 
-        to_sink_ = to_sink(CALL, flow);
+        to_sink_ = self(CALL, to_sink_v1(CALL, node.uid == NODE_NUM-1 , capacity_n + flow));
 
-        field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) * (capacity_n + flow),
+        field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) 
+                                            * (capacity_n + flow),
                                      excess_n);
 
         field<real_t> backward = truncate(flow, excess_n);
@@ -282,7 +293,7 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
 //! @brief The distribution of initial node positions.
-using rectangle_d = distribution::rect_n<1, 0, 0, 400, 400>;
+using rectangle_d = distribution::rect_n<1, 0, 0, 600, 800>;
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
     node_color,                         color,
