@@ -140,8 +140,8 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0, 1.0, INF);});
 }
 
-FUN field<real_t> to_sink_v1(ARGS, bool b, field<real_t> graph){ CODE
-    return nbr(CALL, b?field<real_t>(0.0):field<real_t>(INF), [&](field<real_t> distances){
+FUN real_t to_sink_v1(ARGS, bool b, field<real_t> graph){ CODE
+    return nbr(CALL, b? 0.0 : INF, [&](field<real_t> distances){
             real_t s = self(CALL, distances);
             
             field<real_t> tmp = map_hood([&](real_t d, real_t g){
@@ -150,9 +150,9 @@ FUN field<real_t> to_sink_v1(ARGS, bool b, field<real_t> graph){ CODE
             real_t m = min_hood(CALL, tmp);
     
 
-            return  field<real_t>(b? 0.0: s> m 
-                                            ? m+1
-                                            : s+1);
+            return  b? 0.0: s> m 
+                            ? m+1
+                            : s+1;
     });
 }
 
@@ -170,7 +170,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        to_sink_ = self(CALL, to_sink_v1(CALL, node.uid == NODE_NUM-1 , capacity_n + flow));
+        to_sink_ = to_sink_v1(CALL, node.uid == NODE_NUM-1 , capacity_n + flow);
 
         field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) 
                                             * (capacity_n + flow),
