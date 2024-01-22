@@ -137,23 +137,28 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 // Returns the distance to the closest sink-like node
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     bool is_sink_ = (node.uid == NODE_NUM-1);
-    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0, 1.0, INF);});
+    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0 && flow<=0, 1.0, INF);});
 }
 
-FUN real_t to_sink_v1(ARGS, field<real_t> graph){ CODE
+FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
     bool is_sink_ = (node.uid == NODE_NUM-1);
+    field<real_t> graph = capacity(CALL) + flow;
+    real_t candidate = abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0 && flow<=0, 1.0, INF);});
+
+    real_t old_candidate = old(CALL, candidate);
+
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
-            real_t s = self(CALL, distances);
-            
+
             field<real_t> tmp = map_hood([&](real_t d, real_t g){
-                return g>0 ? d : INF;
+                return g>0 ? d+1 : INF;
             }, distances, graph);
             real_t m = min_hood(CALL, tmp);
     
 
-            return  is_sink_? 0.0: s> m 
-                            ? m+1
-                            : s+1;
+            return  is_sink_? 0.0
+                            : old_candidate <INF
+                                ? candidate
+                                : m;
     });
 }
 
@@ -171,7 +176,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        to_sink_ = to_sink_v1(CALL , capacity_n + flow);
+        to_sink_ = to_sink_v1(CALL , flow);
 
         field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) 
                                             * (capacity_n + flow),
@@ -231,8 +236,8 @@ MAIN() {
     In this structurre we monitor how much flow source pushes and
     how much flow sink receives. Hopefully they're equal in absolute module
     */
-    out_flow_= sum(mux(flow_>0, flow_, 0.0));
-    in_flow_= sum(mux(flow_<0, -flow_, 0.0));
+    out_flow_= is_source? sum(flow_) : 0.0;
+    in_flow_= is_sink? sum(-flow_) : 0.0;
 
     real_t residual = sum(mux(flow_>=0, capacity_-flow_, 0.0));
 
@@ -260,7 +265,7 @@ MAIN() {
                                     ? color(GREEN)
                                     : sum(flow_)<0
                                         ? color(RED)
-                                        : node.storage(out_flow{})>0
+                                        : sum(mux(flow_>0, flow_, 0.0))>0
                                             ?color(YELLOW)
                                             : color(BLACK);
 }
