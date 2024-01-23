@@ -88,7 +88,7 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
 
-    return capacity_v2(CALL);
+    return capacity_v3(CALL);
 }
 
 
@@ -145,7 +145,7 @@ FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
     field<real_t> graph = capacity(CALL) + flow;
     real_t candidate = abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0 && flow<=0, 1.0, INF);});
 
-    real_t old_candidate = old(CALL, candidate);
+    real_t old_candidate = old(CALL, old(CALL, candidate));
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
 
@@ -299,7 +299,7 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
 //! @brief The distribution of initial node positions.
-using rectangle_d = distribution::rect_n<1, 0, 0, 600, 800>;
+using rectangle_d = distribution::rect_n<1, 0, 0, 500, 500>;
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
     node_color,                         color,
