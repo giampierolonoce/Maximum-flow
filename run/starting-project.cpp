@@ -5,7 +5,7 @@
 //! Importing the FCPP library.
 #include "lib/fcpp.hpp"
 
-const int NODE_NUM = 450;
+const int NODE_NUM = 500;
 
 namespace fcpp {
 
@@ -219,8 +219,8 @@ MAIN() {
 
 
     // Usage of node storage
-    is_source_ = node.uid== 100;
-    is_sink_ = node.uid == 164;
+    is_source_ = node.uid== 102;
+    is_sink_ = node.uid == 472;
 
     node.storage(node_shape{}) = is_source_
                                     ?shape::star 
@@ -309,7 +309,7 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
 //! @brief The distribution of initial node positions.
-using rectangle_d = distribution::rect_n<1, 0, 0, 600, 800>;
+using rectangle_d = distribution::rect_n<1, 0, 0, 1000, 1000>;
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
     node_color,                         color,
