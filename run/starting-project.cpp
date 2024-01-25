@@ -5,7 +5,7 @@
 //! Importing the FCPP library.
 #include "lib/fcpp.hpp"
 
-const int NODE_NUM = 300;
+const int NODE_NUM = 450;
 
 namespace fcpp {
 
@@ -15,6 +15,9 @@ namespace tags {
     struct node_color {};
     struct node_size {};
     struct node_shape {};
+
+    struct is_source {};
+    struct is_sink {};
 
     struct flow_field {};
     struct obstruction {};
@@ -88,7 +91,7 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 // Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
 
-    return capacity_v3(CALL);
+    return capacity_v2(CALL);
 }
 
 
@@ -122,11 +125,11 @@ Sink is always ready to receive flow.
 */
 FUN real_t excess(ARGS, field<real_t> flow){ CODE
 
-    bool is_source = node.uid==0;
-    bool is_sink = node.uid == NODE_NUM-1;
-    return is_source
+    bool& is_source_ = node.storage(tags::is_source{});
+    bool& is_sink_ = node.storage(tags::is_sink{});
+    return is_source_
                 ?INF
-                :is_sink
+                :is_sink_
                     ? -INF
                     :sum( flow);
 }
@@ -136,29 +139,34 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 
 // Returns the distance to the closest sink-like node
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
-    bool is_sink_ = (node.uid == NODE_NUM-1);
+    bool& is_sink_ = node.storage(tags::is_sink{});
     return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0 && flow<=0, 1.0, INF);});
 }
 
 FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
-    bool is_sink_ = (node.uid == NODE_NUM-1);
+    bool& is_sink_ = node.storage(tags::is_sink{});
     field<real_t> graph = capacity(CALL) + flow;
-    real_t candidate = abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0 && flow<=0, 1.0, INF);});
-
-    real_t old_candidate = old(CALL, old(CALL, candidate));
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
+            field<real_t> tmp_1 = map_hood([&](real_t d, real_t g, real_t f){
+                return g>0 && f<=0 ? d+1 : INF;
+            }, distances, graph, flow);
+            real_t m_1 = min_hood(CALL, tmp_1);
 
-            field<real_t> tmp = map_hood([&](real_t d, real_t g){
+
+            field<real_t> tmp_2 = map_hood([&](real_t d, real_t g){
                 return g>0 ? d+1 : INF;
             }, distances, graph);
-            real_t m = min_hood(CALL, tmp);
-    
+            real_t m_2 = min_hood(CALL, tmp_2);
+     
+            real_t result = is_sink_? 0.0
+                            : old(CALL, old(CALL, m_1)) <INF
+                                ? m_1
+                                : m_2;
 
-            return  is_sink_? 0.0
-                            : old_candidate <INF
-                                ? candidate
-                                : m;
+            return  result > old(CALL, old(CALL, result))
+                    ? INF
+                    : result;
     });
 }
 
@@ -201,20 +209,22 @@ MAIN() {
 
     // References
     field<real_t>& capacity_ = node.storage(capacity_field{});
-    real_t& to_sink_ = node.storage(tags::node_distance_to_sink{});
+    real_t& to_sink_ = node.storage(node_distance_to_sink{});
     real_t& obstruction_ = node.storage(obstruction{});
     real_t& out_flow_ = node.storage(out_flow{});
     real_t& in_flow_ = node.storage(in_flow{});
     real_t& obstruction_condition_ = node.storage(obstruction_condition{});
+    bool& is_source_ = node.storage(is_source{});
+    bool& is_sink_ = node.storage(is_sink{});
 
 
     // Usage of node storage
-    bool is_source = node.uid==0;
-    bool is_sink = node.uid == NODE_NUM-1;
+    is_source_ = node.uid== 100;
+    is_sink_ = node.uid == 164;
 
-    node.storage(node_shape{}) = is_source
+    node.storage(node_shape{}) = is_source_
                                     ?shape::star 
-                                    :is_sink
+                                    :is_sink_
                                         ? shape::tetrahedron
                                         : shape::sphere;
 
@@ -236,18 +246,16 @@ MAIN() {
     In this structurre we monitor how much flow source pushes and
     how much flow sink receives. Hopefully they're equal in absolute module
     */
-    out_flow_= is_source? sum(flow_) : 0.0;
-    in_flow_= is_sink? sum(-flow_) : 0.0;
+    out_flow_= is_source_? sum(flow_) : 0.0;
+    in_flow_= is_sink_? sum(-flow_) : 0.0;
 
     real_t residual = sum(mux(flow_>=0, capacity_-flow_, 0.0));
 
-    obstruction_=  to_sink_<INF
-    ? residual
-    : -residual;
+    //obstruction_=  to_sink_<INF? residual: -residual;
 
 
-    //eventually true
-    obstruction_condition_ = to_sink_<INF ;
+    
+    obstruction_condition_ = to_sink_< obstruction_ ;
 
 
     //obstruction_condition_ = mux(to_sink_<INF, to_sink_, 0.0);
@@ -261,7 +269,9 @@ MAIN() {
     are YELLOW; other nodes are WHITE.
     */
 
-    node.storage(node_color{}) = sum(flow_)>0
+    node.storage(node_color{}) = obstruction_condition_>0 
+                                ?color(BLUE)
+                                :sum(flow_)>0
                                     ? color(GREEN)
                                     : sum(flow_)<0
                                         ? color(RED)
@@ -299,7 +309,7 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
 //! @brief The distribution of initial node positions.
-using rectangle_d = distribution::rect_n<1, 0, 0, 500, 500>;
+using rectangle_d = distribution::rect_n<1, 0, 0, 600, 800>;
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
     node_color,                         color,
@@ -311,13 +321,15 @@ using store_t = tuple_store<
     flow_field,                         field<real_t>,
     out_flow,                           real_t,
     in_flow,                            real_t,
-    obstruction_condition,              real_t
+    obstruction_condition,              real_t,
+    is_source,                          bool,
+    is_sink,                            bool
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
-    obstruction,                aggregator::sum<real_t>,
+    //obstruction,                aggregator::sum<real_t>,
     obstruction_condition,      aggregator::sum<real_t>
 >;
 
