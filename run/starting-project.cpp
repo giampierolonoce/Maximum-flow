@@ -174,8 +174,9 @@ FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
 //Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         real_t& to_sink_ = node.storage(tags::node_distance_to_sink{});
+        field<real_t>& capacity_n = node.storage(tags::capacity_field{});
 
-        field<real_t> capacity_n = capacity(CALL);
+        capacity_n = capacity(CALL);
         
         //safety conditions
         mod_other(CALL, flow_) = 0.0;
@@ -184,7 +185,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        to_sink_ = to_sink_v1(CALL , flow);
+        to_sink_ = old(CALL, to_sink_v1(CALL , flow));
 
         field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) 
                                             * (capacity_n + flow),
@@ -208,7 +209,7 @@ MAIN() {
     using namespace tags;
 
     // References
-    field<real_t>& capacity_ = node.storage(capacity_field{});
+    
     real_t& to_sink_ = node.storage(node_distance_to_sink{});
     real_t& obstruction_ = node.storage(obstruction{});
     real_t& out_flow_ = node.storage(out_flow{});
@@ -235,9 +236,6 @@ MAIN() {
     
     node.storage(node_size{}) = 8;
 
-    // These other structures are just aimed at monitoring the behaviour of system
-    capacity_ = capacity(CALL);
-
     
     //to_sink_ = to_sink(CALL, flow_);
 
@@ -249,10 +247,8 @@ MAIN() {
     out_flow_= is_source_? sum(flow_) : 0.0;
     in_flow_= is_sink_? sum(-flow_) : 0.0;
 
-    real_t residual = sum(mux(flow_>=0, capacity_-flow_, 0.0));
-
     //obstruction_=  to_sink_<INF? residual: -residual;
-
+    obstruction_ = sum(capacity(CALL));
 
     
     obstruction_condition_ = to_sink_< obstruction_ ;
@@ -269,9 +265,7 @@ MAIN() {
     are YELLOW; other nodes are WHITE.
     */
 
-    node.storage(node_color{}) = obstruction_condition_>0 
-                                ?color(BLUE)
-                                :sum(flow_)>0
+    node.storage(node_color{}) = sum(flow_)>0
                                     ? color(GREEN)
                                     : sum(flow_)<0
                                         ? color(RED)
@@ -328,9 +322,9 @@ using store_t = tuple_store<
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
-    in_flow,                    aggregator::max<real_t>,
-    //obstruction,                aggregator::sum<real_t>,
-    obstruction_condition,      aggregator::sum<real_t>
+    in_flow,                    aggregator::max<real_t>
+    //,obstruction,                aggregator::sum<real_t>
+    //,obstruction_condition,      aggregator::sum<real_t>
 >;
 
 //! @brief The general simulation options.
