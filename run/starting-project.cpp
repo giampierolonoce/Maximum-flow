@@ -140,7 +140,7 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 // Returns the distance to the closest sink-like node
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
-    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0 && flow<=0, 1.0, INF);});
+    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0, 1.0, INF);});
 }
 
 FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
@@ -247,11 +247,8 @@ MAIN() {
     out_flow_= is_source_? sum(flow_) : 0.0;
     in_flow_= is_sink_? sum(-flow_) : 0.0;
 
-    //obstruction_=  to_sink_<INF? residual: -residual;
-    obstruction_ = sum(capacity(CALL));
-
     
-    obstruction_condition_ = to_sink_< obstruction_ ;
+    obstruction_ = sum(nbr(CALL,capacity(CALL)));
 
 
     //obstruction_condition_ = mux(to_sink_<INF, to_sink_, 0.0);
