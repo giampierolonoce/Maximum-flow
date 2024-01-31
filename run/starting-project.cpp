@@ -140,9 +140,11 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 // Returns the distance to the closest sink-like node
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
-    return abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0, 1.0, INF);});
+    real_t tmp = abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0, 1.0, INF);});
+    return tmp < NODE_NUM ? tmp : INF;
 }
 
+/*
 FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
     field<real_t> graph = capacity(CALL) + flow;
@@ -169,7 +171,7 @@ FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
                     : result;
     });
 }
-
+*/
 
 //Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
@@ -185,7 +187,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        to_sink_ = old(CALL, to_sink_v1(CALL , flow));
+        to_sink_ =  to_sink(CALL , flow);
 
         field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) 
                                             * (capacity_n + flow),
@@ -291,9 +293,9 @@ constexpr int node_num = NODE_NUM;
 constexpr size_t dim = 2;
 
 //! @brief Description of the round schedule.
-using round_s = sequence::periodic<
-    distribution::interval_n<times_t, 0, 1>,    // uniform time in the [0,1] interval for start
-    distribution::weibull_n<times_t, 10, 1, 10> // weibull-distributed time for interval (10/10=1 mean, 1/10=0.1 deviation)
+using round_s = sequence::periodic_n<1,0,1
+    //distribution::interval_n<times_t, 0, 1>,    // uniform time in the [0,1] interval for start
+    //distribution::weibull_n<times_t, 10, 1, 10> // weibull-distributed time for interval (10/10=1 mean, 1/10=0.1 deviation)
 >;
 //! @brief The sequence of network snapshots (one every simulated second).
 using log_s = sequence::periodic_n<1, 0, 1>;
