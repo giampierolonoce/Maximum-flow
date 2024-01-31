@@ -253,9 +253,6 @@ MAIN() {
     obstruction_ = sum(nbr(CALL,capacity(CALL)));
 
 
-    //obstruction_condition_ = mux(to_sink_<INF, to_sink_, 0.0);
-
-
     
     
     /*
@@ -293,9 +290,9 @@ constexpr int node_num = NODE_NUM;
 constexpr size_t dim = 2;
 
 //! @brief Description of the round schedule.
-using round_s = sequence::periodic_n<1,0,1
-    //distribution::interval_n<times_t, 0, 1>,    // uniform time in the [0,1] interval for start
-    //distribution::weibull_n<times_t, 10, 1, 10> // weibull-distributed time for interval (10/10=1 mean, 1/10=0.1 deviation)
+using round_s = sequence::periodic<
+    distribution::interval_n<times_t, 0, 1>,    // uniform time in the [0,1] interval for start
+    distribution::weibull_n<times_t, 10, 1, 10> // weibull-distributed time for interval (10/10=1 mean, 1/10=0.1 deviation)
 >;
 //! @brief The sequence of network snapshots (one every simulated second).
 using log_s = sequence::periodic_n<1, 0, 1>;
@@ -323,7 +320,7 @@ using aggregator_t = aggregators<
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>
     //,obstruction,                aggregator::sum<real_t>
-    //,obstruction_condition,      aggregator::sum<real_t>
+    //,obstruction_condition,      aggregator::max<real_t>
 >;
 
 //! @brief The general simulation options.
