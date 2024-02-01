@@ -6,6 +6,7 @@
 #include "lib/fcpp.hpp"
 
 const int NODE_NUM = 500;
+const int BOUND = 10;
 
 namespace fcpp {
 
@@ -141,37 +142,28 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
     real_t tmp = abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0, 1.0, INF);});
-    return tmp < NODE_NUM ? tmp : INF;
+    return tmp < BOUND ? tmp : INF;
 }
 
-/*
+
 FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
     field<real_t> graph = capacity(CALL) + flow;
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
-            field<real_t> tmp_1 = map_hood([&](real_t d, real_t g, real_t f){
-                return g>0 && f<=0 ? d+1 : INF;
-            }, distances, graph, flow);
-            real_t m_1 = min_hood(CALL, tmp_1);
-
-
-            field<real_t> tmp_2 = map_hood([&](real_t d, real_t g){
+            field<real_t> tmp = map_hood([&](real_t d, real_t g){
                 return g>0 ? d+1 : INF;
             }, distances, graph);
-            real_t m_2 = min_hood(CALL, tmp_2);
-     
-            real_t result = is_sink_? 0.0
-                            : old(CALL, old(CALL, m_1)) <INF
-                                ? m_1
-                                : m_2;
 
-            return  result > old(CALL, old(CALL, result))
-                    ? INF
-                    : result;
+            real_t m = min_hood(CALL, tmp);
+
+            return  is_sink_? 0.0
+                                :m < BOUND
+                                    ? m 
+                                    : INF;
     });
 }
-*/
+
 
 //Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
@@ -187,7 +179,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        to_sink_ =  to_sink(CALL , flow);
+        to_sink_ =  to_sink_v1(CALL , flow);
 
         field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) 
                                             * (capacity_n + flow),
@@ -217,6 +209,7 @@ MAIN() {
     real_t& out_flow_ = node.storage(out_flow{});
     real_t& in_flow_ = node.storage(in_flow{});
     real_t& obstruction_condition_ = node.storage(obstruction_condition{});
+    field<real_t>& capacity_n = node.storage(tags::capacity_field{});
     bool& is_source_ = node.storage(is_source{});
     bool& is_sink_ = node.storage(is_sink{});
 
@@ -250,7 +243,13 @@ MAIN() {
     in_flow_= is_sink_? sum(-flow_) : 0.0;
 
     
-    obstruction_ = sum(nbr(CALL,capacity(CALL)));
+    //obstruction_ = sum(nbr(CALL,capacity(CALL)));
+
+    real_t residual = sum(mux(capacity_n - flow_>0 && flow_>=0, capacity_n - flow_, 0.0 ));
+
+    obstruction_ = to_sink_ < INF
+                        ? residual
+                        : -residual;
 
 
     
@@ -284,7 +283,7 @@ using namespace component::tags;
 //! @brief Import tags used by aggregate functions.
 using namespace coordination::tags;
 
-//! @brief Number of people in the area.
+//! @brief Number of people in the area. 
 constexpr int node_num = NODE_NUM;
 //! @brief Dimensionality of the space.
 constexpr size_t dim = 2;
@@ -319,7 +318,7 @@ using store_t = tuple_store<
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>
-    //,obstruction,                aggregator::sum<real_t>
+    ,obstruction,                aggregator::sum<real_t>
     //,obstruction_condition,      aggregator::max<real_t>
 >;
 
