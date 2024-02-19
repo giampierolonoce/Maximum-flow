@@ -5,14 +5,14 @@
 //! Importing the FCPP library.
 #include "lib/fcpp.hpp"
 
-const int NODE_NUM = 500;
+const int NODE_NUM = 1000;
 const int BOUND = 10;
 
 namespace fcpp {
 
 namespace coordination {
 
-namespace tags {
+namespace tags { 
     struct node_color {};
     struct node_size {};
     struct node_shape {};
@@ -164,6 +164,20 @@ FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
     });
 }
 
+FUN real_t from_source_v1(ARGS, field<real_t> flow){ CODE
+    bool& is_source_ = node.storage(tags::is_source{});
+
+    return nbr(CALL, is_source_? 0.0 : INF, [&](field<real_t> distances){
+            field<real_t> tmp = map_hood([&](real_t d, real_t f){
+                return f>0 ? d+1 : INF;
+            }, distances, flow);
+
+            real_t m = min_hood(CALL, tmp);
+
+            return  is_source_? 0.0
+                                :m;
+    });
+}
 
 //Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
@@ -171,6 +185,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         field<real_t>& capacity_n = node.storage(tags::capacity_field{});
 
         capacity_n = capacity(CALL);
+        
         
         //safety conditions
         mod_other(CALL, flow_) = 0.0;
@@ -180,16 +195,25 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         real_t excess_n = excess(CALL, flow);
 
         to_sink_ =  to_sink_v1(CALL , flow);
+        real_t from_source_ = from_source_v1(CALL, flow);
 
         field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) 
                                             * (capacity_n + flow),
-                                     excess_n);
+                                        excess_n);
 
-        field<real_t> backward = truncate(flow, excess_n);
+        field<real_t> backward = truncate(flow 
+                                            * (nbr(CALL, from_source_)< from_source_) 
+                                        ,excess_n);
+
+        field<real_t> reduce = truncate(flow ,excess_n);
+        
 
         field<real_t>& result = node.storage(tags::flow_field{});
-        result = -flow + mux(sum(forward)>0, forward, backward);
+        
 
+        //result = mux(from_source_<INF, -flow + mux(sum(forward)>0, forward, backward), field<real_t>(0.0));
+
+        result = -flow + mux(sum(forward)>0, forward, mux(excess_n>=0, backward, reduce));
         return result;
 }
 
@@ -245,11 +269,13 @@ MAIN() {
     
     //obstruction_ = sum(nbr(CALL,capacity(CALL)));
 
-    real_t residual = sum(mux(capacity_n - flow_>0 && flow_>=0, capacity_n - flow_, 0.0 ));
+    real_t residual = sum(mux( flow_>=0, capacity_n - flow_, 0.0 ));
 
     obstruction_ = to_sink_ < INF
                         ? residual
                         : -residual;
+
+    obstruction_condition_ = obstruction_<= old(CALL, obstruction_);
 
 
     
@@ -265,7 +291,7 @@ MAIN() {
                                     : sum(flow_)<0
                                         ? color(RED)
                                         : sum(mux(flow_>0, flow_, 0.0))>0
-                                            ?color(YELLOW)
+                                            ? color(YELLOW)
                                             : color(BLACK);
 }
 //! @brief Export types used by the main function.
@@ -319,7 +345,7 @@ using aggregator_t = aggregators<
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>
     ,obstruction,                aggregator::sum<real_t>
-    //,obstruction_condition,      aggregator::max<real_t>
+    ,obstruction_condition,      aggregator::min<real_t>
 >;
 
 //! @brief The general simulation options.
