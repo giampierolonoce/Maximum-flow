@@ -148,6 +148,8 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
 
 FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
+    bool& is_source_ = node.storage(tags::is_source{});
+
     field<real_t> graph = capacity(CALL) + flow;
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
@@ -158,7 +160,7 @@ FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
             real_t m = min_hood(CALL, tmp);
 
             return  is_sink_? 0.0
-                                :m < BOUND
+                                :!is_source_ && m < BOUND
                                     ? m 
                                     : INF;
     });
@@ -271,9 +273,17 @@ MAIN() {
 
     real_t residual = sum(mux( flow_>=0, capacity_n - flow_, 0.0 ));
 
+    real_t throughput = sum(mux( flow_>=0, flow_, 0.0 ));
+
+/*
     obstruction_ = to_sink_ < INF
                         ? residual
                         : -residual;
+                        */
+
+    obstruction_ = to_sink_<INF
+                    ? throughput
+                    : residual;
 
     obstruction_condition_ = obstruction_<= old(CALL, obstruction_);
 
@@ -286,7 +296,7 @@ MAIN() {
     are YELLOW; other nodes are WHITE.
     */
 
-    node.storage(node_color{}) = sum(flow_)>0
+    node.storage(node_color{}) =  sum(flow_)>0
                                     ? color(GREEN)
                                     : sum(flow_)<0
                                         ? color(RED)
