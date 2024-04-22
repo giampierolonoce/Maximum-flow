@@ -5,8 +5,8 @@
 //! Importing the FCPP library.
 #include "lib/fcpp.hpp"
 
-const int NODE_NUM = 1000;
-const int BOUND = 10;
+const int NODE_NUM = 500;
+const int BOUND = 100;
 
 namespace fcpp {
 
@@ -27,6 +27,7 @@ namespace tags {
     struct capacity_field {};
 
     struct node_distance_to_sink{};
+    struct node_distance_from_source{};
 
     struct out_flow{};
     struct in_flow{};
@@ -63,7 +64,7 @@ These capacities will remain unaffected by the updates in our flow.
 */
 FUN field<real_t> capacity_v0(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
-    return map_hood([&](device_t id){ return node.uid!=id? 1.0 : 0.0 ;}, ids);
+    return map_hood([&](device_t id){ return node.uid!=id ;}, ids);
 }
 
 
@@ -138,15 +139,8 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 
 
 
-// Returns the distance to the closest sink-like node
+
 FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
-    bool& is_sink_ = node.storage(tags::is_sink{});
-    real_t tmp = abf_distance(CALL, is_sink_, [&](){return mux(capacity(CALL) + flow >0, 1.0, INF);});
-    return tmp < BOUND ? tmp : INF;
-}
-
-
-FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
     bool& is_source_ = node.storage(tags::is_source{});
 
@@ -166,7 +160,7 @@ FUN real_t to_sink_v1(ARGS, field<real_t> flow){ CODE
     });
 }
 
-FUN real_t from_source_v1(ARGS, field<real_t> flow){ CODE
+FUN real_t from_source(ARGS, field<real_t> flow){ CODE
     bool& is_source_ = node.storage(tags::is_source{});
 
     return nbr(CALL, is_source_? 0.0 : INF, [&](field<real_t> distances){
@@ -184,6 +178,7 @@ FUN real_t from_source_v1(ARGS, field<real_t> flow){ CODE
 //Updates the flow adding the increment
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         real_t& to_sink_ = node.storage(tags::node_distance_to_sink{});
+        real_t& from_source_ = node.storage(tags::node_distance_from_source{});
         field<real_t>& capacity_n = node.storage(tags::capacity_field{});
 
         capacity_n = capacity(CALL);
@@ -196,8 +191,8 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        to_sink_ =  to_sink_v1(CALL , flow);
-        real_t from_source_ = from_source_v1(CALL, flow);
+        to_sink_ =  to_sink(CALL , flow);
+        from_source_ = from_source(CALL, flow);
 
         field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) 
                                             * (capacity_n + flow),
@@ -265,8 +260,8 @@ MAIN() {
     In this structurre we monitor how much flow source pushes and
     how much flow sink receives. Hopefully they're equal in absolute module
     */
-    out_flow_= is_source_? sum(flow_) : 0.0;
-    in_flow_= is_sink_? sum(-flow_) : 0.0;
+    out_flow_= sum(mux(flow_>0, flow_, 0.0));
+    in_flow_= sum(mux(flow_>0, 0.0, -flow_)) ;
 
     
     //obstruction_ = sum(nbr(CALL,capacity(CALL)));
@@ -285,7 +280,7 @@ MAIN() {
                     ? throughput
                     : residual;
 
-    obstruction_condition_ = obstruction_<= old(CALL, obstruction_);
+    obstruction_condition_ = sum(flow_)!=-sum(nbr(CALL, flow_));
 
 
     
@@ -301,7 +296,9 @@ MAIN() {
                                     : sum(flow_)<0
                                         ? color(RED)
                                         : sum(mux(flow_>0, flow_, 0.0))>0
-                                            ? color(YELLOW)
+                                            ? obstruction_condition_
+                                                    ? color(BLUE)
+                                                    : color(YELLOW)
                                             : color(BLACK);
 }
 //! @brief Export types used by the main function.
@@ -335,12 +332,13 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 using spawn_s = sequence::multiple_n<node_num, 0>;
 //! @brief The distribution of initial node positions.
 using rectangle_d = distribution::rect_n<1, 0, 0, 1000, 1000>;
-//! @brief The contents of the node storage as tags and associated types.
+//! @brief The contents of the node storage as tags and associated types. 
 using store_t = tuple_store<
     node_color,                         color,
     node_size,                          double,
     node_shape,                         shape,
     node_distance_to_sink,              real_t,
+    node_distance_from_source,          real_t,
     obstruction,                        real_t,
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
