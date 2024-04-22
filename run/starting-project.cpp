@@ -6,7 +6,9 @@
 #include "lib/fcpp.hpp"
 
 const int NODE_NUM = 500;
-const int BOUND = 100;
+const int BOUND = 10;
+const int SOURCE_ID = 102;
+const int SINK_ID = 472;
 
 namespace fcpp {
 
@@ -21,7 +23,6 @@ namespace tags {
     struct is_sink {};
 
     struct flow_field {};
-    struct obstruction {};
 
     //fields of outgoing capacities
     struct capacity_field {};
@@ -43,25 +44,6 @@ constexpr size_t communication_range = 100;
 const size_t dim = 2;
 
 
-
-/*
-In the description of the algorithm, weighted directed graphs on the set of devices will be 
-identified with fields of reals:
-if  d1 is a device, d2 a neighbour of d1 and the field F in d1  has value w nonzero in d2,
-then we say that the graph associated with F has an arc from d1 to d2 with weight w.
-
-This algorithm is inspired to the Ford–Fulkerson method: as long as there is an admissible 
-path from source to sink in the residual graph, we push flow along the path.
-We detect the presence of such paths simply by considering the distances from source and 
-to sink along the residual graph.
-If a node has both finite distance from source and finite distance to sink, then there is an
-admissible path passing through it.
-*/
-
-
-/* Here we implement our rules to assign dynamically the capacities between nodes.
-These capacities will remain unaffected by the updates in our flow.
-*/
 FUN field<real_t> capacity_v0(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid!=id ;}, ids);
@@ -72,7 +54,6 @@ FUN field<real_t> capacity_v1(ARGS){ CODE
     field<device_t> ids = nbr_uid(CALL);
     return map_hood([&](device_t id){ return node.uid<id ;}, ids);
 }
-
 
 
 
@@ -88,16 +69,12 @@ FUN field<real_t> capacity_v3(ARGS){ CODE
 }
 
 
-
-
-// Rough method to switch between capacities
 FUN field<real_t> capacity(ARGS){ CODE
 
     return capacity_v2(CALL);
 }
 
 
-//This is just another function to sum up the values in a field
 real_t sum(field<real_t> input){
 
     real_t tmp= 0.0;
@@ -118,13 +95,6 @@ field<real_t> truncate(field<real_t> inputField, real_t inputValue){
     : -truncate(-inputField, - inputValue);
 }
 
-/*
-Function that monitors the ability of a node to push or receive flow.
-Strictly negative excess means that a node receives more flow in ingress so it can push some.
-Source is always able to push flow.
-Strictly positive excess means that a node pushes more flow so it has to receive some.
-Sink is always ready to receive flow.
-*/
 FUN real_t excess(ARGS, field<real_t> flow){ CODE
 
     bool& is_source_ = node.storage(tags::is_source{});
@@ -175,7 +145,7 @@ FUN real_t from_source(ARGS, field<real_t> flow){ CODE
     });
 }
 
-//Updates the flow adding the increment
+
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         real_t& to_sink_ = node.storage(tags::node_distance_to_sink{});
         real_t& from_source_ = node.storage(tags::node_distance_from_source{});
@@ -186,7 +156,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
         
         //safety conditions
         mod_other(CALL, flow_) = 0.0;
-        field<real_t> flow = mux( flow_>0 , flow_, std::max(flow_, -capacity_n)); 
+        field<real_t> flow = mux( flow_>0 , std::min(flow_, capacity_n), std::max(flow_, -capacity_n)); 
         //
 
         real_t excess_n = excess(CALL, flow);
@@ -199,16 +169,13 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
                                         excess_n);
 
         field<real_t> backward = truncate(flow 
-                                            * (nbr(CALL, from_source_)< from_source_) 
-                                        ,excess_n);
+                                            * (nbr(CALL, from_source_)< from_source_),
+                                        excess_n);
 
         field<real_t> reduce = truncate(flow ,excess_n);
         
 
         field<real_t>& result = node.storage(tags::flow_field{});
-        
-
-        //result = mux(from_source_<INF, -flow + mux(sum(forward)>0, forward, backward), field<real_t>(0.0));
 
         result = -flow + mux(sum(forward)>0, forward, mux(excess_n>=0, backward, reduce));
         return result;
@@ -226,7 +193,6 @@ MAIN() {
     // References
     
     real_t& to_sink_ = node.storage(node_distance_to_sink{});
-    real_t& obstruction_ = node.storage(obstruction{});
     real_t& out_flow_ = node.storage(out_flow{});
     real_t& in_flow_ = node.storage(in_flow{});
     real_t& obstruction_condition_ = node.storage(obstruction_condition{});
@@ -236,8 +202,8 @@ MAIN() {
 
 
     // Usage of node storage
-    is_source_ = node.uid== 102;
-    is_sink_ = node.uid == 472;
+    is_source_ = node.uid== SOURCE_ID;
+    is_sink_ = node.uid == SINK_ID;
 
     node.storage(node_shape{}) = is_source_
                                     ?shape::star 
@@ -245,51 +211,19 @@ MAIN() {
                                         ? shape::tetrahedron
                                         : shape::sphere;
 
-    // This is the only structure that node requires to manage
     field<real_t> flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
             return update_flow(CALL, flow);
             });
     
     node.storage(node_size{}) = 8;
 
-    
-    //to_sink_ = to_sink(CALL, flow_);
 
+    out_flow_= is_source_? sum(mux(flow_>0, flow_, 0.0)) : 0.0;
+    in_flow_= is_sink_? sum(mux(flow_>0, 0.0, -flow_)) : 0.0;
 
-    /*
-    In this structurre we monitor how much flow source pushes and
-    how much flow sink receives. Hopefully they're equal in absolute module
-    */
-    out_flow_= sum(mux(flow_>0, flow_, 0.0));
-    in_flow_= sum(mux(flow_>0, 0.0, -flow_)) ;
-
-    
-    //obstruction_ = sum(nbr(CALL,capacity(CALL)));
-
-    real_t residual = sum(mux( flow_>=0, capacity_n - flow_, 0.0 ));
-
-    real_t throughput = sum(mux( flow_>=0, flow_, 0.0 ));
-
-/*
-    obstruction_ = to_sink_ < INF
-                        ? residual
-                        : -residual;
-                        */
-
-    obstruction_ = to_sink_<INF
-                    ? throughput
-                    : residual;
 
     obstruction_condition_ = sum(flow_)!=-sum(nbr(CALL, flow_));
 
-
-    
-    
-    /*
-    Nodes that have flow to push are GREEN; those that need to receive flow are RED;
-    Nodes that guess to be part of an admissible path from a source-like to a sink-like
-    are YELLOW; other nodes are WHITE.
-    */
 
     node.storage(node_color{}) =  sum(flow_)>0
                                     ? color(GREEN)
@@ -339,7 +273,6 @@ using store_t = tuple_store<
     node_shape,                         shape,
     node_distance_to_sink,              real_t,
     node_distance_from_source,          real_t,
-    obstruction,                        real_t,
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
     out_flow,                           real_t,
@@ -351,9 +284,8 @@ using store_t = tuple_store<
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
-    in_flow,                    aggregator::max<real_t>
-    ,obstruction,                aggregator::sum<real_t>
-    ,obstruction_condition,      aggregator::min<real_t>
+    in_flow,                    aggregator::max<real_t>,
+    obstruction_condition,      aggregator::max<real_t>
 >;
 
 //! @brief The general simulation options.
