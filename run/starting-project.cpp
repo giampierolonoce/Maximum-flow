@@ -174,7 +174,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
         field<real_t>& result = node.storage(tags::flow_field{});
 
         result = -flow + mux(excess_n<0, reduce, mux(to_sink_<INF || from_source_==0, forward , backward));
-        //mux(sum(forward)>0, forward, mux(excess_n>=0, backward, reduce));
+        
         return result;
 }
 
