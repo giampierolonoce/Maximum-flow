@@ -99,6 +99,8 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 
     bool& is_source_ = node.storage(tags::is_source{});
     bool& is_sink_ = node.storage(tags::is_sink{});
+
+
     return is_source_
                 ?INF
                 :is_sink_
@@ -146,18 +148,12 @@ FUN real_t from_source(ARGS, field<real_t> flow){ CODE
 }
 
 
-FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
+FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
         real_t& to_sink_ = node.storage(tags::node_distance_to_sink{});
         real_t& from_source_ = node.storage(tags::node_distance_from_source{});
         field<real_t>& capacity_n = node.storage(tags::capacity_field{});
 
         capacity_n = capacity(CALL);
-        
-        
-        //safety conditions
-        mod_other(CALL, flow_) = 0.0;
-        field<real_t> flow = mux( flow_>0 , std::min(flow_, capacity_n), std::max(flow_, -capacity_n)); 
-        //
 
         real_t excess_n = excess(CALL, flow);
 
@@ -177,7 +173,8 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_){ CODE
 
         field<real_t>& result = node.storage(tags::flow_field{});
 
-        result = -flow + mux(sum(forward)>0, forward, mux(excess_n>=0, backward, reduce));
+        result = -flow + mux(excess_n<0, reduce, mux(to_sink_<INF || from_source_==0, forward , backward));
+        //mux(sum(forward)>0, forward, mux(excess_n>=0, backward, reduce));
         return result;
 }
 
