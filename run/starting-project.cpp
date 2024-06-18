@@ -5,10 +5,9 @@
 //! Importing the FCPP library.
 #include "lib/fcpp.hpp"
 
-const int NODE_NUM = 500;
 const int BOUND = 10;
-const int SOURCE_ID = 102;
-const int SINK_ID = 472;
+const int SOURCE_ID = 4;
+const int SINK_ID = 2;
 
 namespace fcpp {
 
@@ -35,7 +34,7 @@ namespace tags {
 
     struct obstruction_condition{};
 
-
+    struct dev_num {};
 }
 
 //! @brief The maximum communication range between nodes.
@@ -78,7 +77,7 @@ FUN field<real_t> capacity(ARGS){ CODE
 real_t sum(field<real_t> input){
 
     real_t tmp= 0.0;
-    for (details::field_iterator<field<real_t>> it(input); !it.end(); ++it){
+    for (fcpp::details::field_iterator<field<real_t>> it(input); !it.end(); ++it){
         tmp += it.value();
     }
     return tmp;
@@ -247,8 +246,6 @@ using namespace component::tags;
 //! @brief Import tags used by aggregate functions.
 using namespace coordination::tags;
 
-//! @brief Number of people in the area. 
-constexpr int node_num = NODE_NUM;
 //! @brief Dimensionality of the space.
 constexpr size_t dim = 2;
 
@@ -259,8 +256,8 @@ using round_s = sequence::periodic<
 >;
 //! @brief The sequence of network snapshots (one every simulated second).
 using log_s = sequence::periodic_n<1, 0, 1>;
-//! @brief The sequence of node generation events (node_num devices all generated at time 0).
-using spawn_s = sequence::multiple_n<node_num, 0>;
+//! @brief The sequence of node generation events (dev_num devices all generated at time 0).
+using spawn_s = sequence::multiple<distribution::constant_i<size_t,dev_num>, distribution::constant_n<real_t,0>>;
 //! @brief The distribution of initial node positions.
 using rectangle_d = distribution::rect_n<1, 0, 0, 1000, 1000>;
 //! @brief The contents of the node storage as tags and associated types. 
@@ -284,6 +281,19 @@ using aggregator_t = aggregators<
     in_flow,                    aggregator::max<real_t>,
     obstruction_condition,      aggregator::max<real_t>
 >;
+using plot_t = plot::split<
+    dev_num,
+    plot::split<
+        seed,
+        plot::split<
+            plot::time,
+            plot::join<
+                plot::value<aggregator::max<in_flow>>,
+                plot::value<aggregator::max<out_flow>>
+            >
+        >
+    >
+>;
 
 //! @brief The general simulation options.
 DECLARE_OPTIONS(list,
@@ -296,7 +306,9 @@ DECLARE_OPTIONS(list,
     log_schedule<log_s>,     // the sequence generator for log events on the network
     spawn_schedule<spawn_s>, // the sequence generator of node creation events on the network
     store_t,       // the contents of the node storage
+    extra_info<dev_num, int, seed, int>,
     aggregator_t,  // the tags and corresponding aggregators to be logged
+    plot_type<plot_t>,
     init<
         x,      rectangle_d // initialise position randomly in a rectangle for new nodes
     >,
@@ -318,13 +330,20 @@ DECLARE_OPTIONS(list,
 int main() {
     using namespace fcpp;
 
-    //! @brief The network object type (interactive simulator with given options).
+    // The plotter object.
+    option::plot_t plotter;
+    // The network object type (interactive simulator with given options).
     using net_t = component::interactive_simulator<option::list>::net;
-    //! @brief The initialisation values (simulation name).
-    auto init_v = common::make_tagged_tuple<option::name>("Starting Project");
-    //! @brief Construct the network object.
-    net_t network{init_v};
-    //! @brief Run the simulation until exit.
-    network.run();
+    std::cout << "/*\n";
+    for (int seed=1; seed<4; seed+=2) for (int num=200; num<=600; num+=200) {
+        // The initialisation values (simulation name).
+        auto init_v = common::make_tagged_tuple<option::name, option::dev_num, option::seed, option::plotter>("Starting Project", num, seed, &plotter);
+        // Construct the network object.
+        net_t network{init_v};
+        // Run the simulation until exit.
+        network.run();
+    }
+    // Builds the resulting plots.
+    std::cout << "*/\n" << plot::file("starting-project", plotter.build());
     return 0;
 }
