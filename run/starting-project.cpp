@@ -78,7 +78,7 @@ FUN field<real_t> capacity(ARGS){ CODE
 real_t sum(field<real_t> input){
 
     real_t tmp= 0.0;
-    for (details::field_iterator<field<real_t>> it(input); !it.end(); ++it){
+    for (fcpp::details::field_iterator<field<real_t>> it(input); !it.end(); ++it){
         tmp += it.value();
     }
     return tmp;
