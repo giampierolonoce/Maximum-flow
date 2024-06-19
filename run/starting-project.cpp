@@ -142,8 +142,7 @@ FUN real_t from_source(ARGS, field<real_t> flow){ CODE
 
             real_t m = min_hood(CALL, tmp);
 
-            return  is_source_? 0.0
-                                :m;
+            return  is_source_? 0.0 :m;
     });
 }
 
@@ -152,6 +151,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
         real_t& to_sink_ = node.storage(tags::node_distance_to_sink{});
         real_t& from_source_ = node.storage(tags::node_distance_from_source{});
         field<real_t>& capacity_n = node.storage(tags::capacity_field{});
+        field<real_t>& result = node.storage(tags::flow_field{});
 
         capacity_n = capacity(CALL);
 
@@ -168,12 +168,14 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
                                             * (nbr(CALL, from_source_)< from_source_),
                                         excess_n);
 
-        field<real_t> reduce = truncate(flow ,excess_n);
+        field<real_t> reduce = truncate(flow, excess_n);
         
 
-        field<real_t>& result = node.storage(tags::flow_field{});
-
-        result = -flow + mux(excess_n<0, reduce, mux(to_sink_<INF || from_source_==0, forward , backward));
+        result = -flow + mux(excess_n<0, 
+                                reduce, 
+                                mux(to_sink_<INF || from_source_==0, 
+                                        forward ,
+                                        backward));
         
         return result;
 }
