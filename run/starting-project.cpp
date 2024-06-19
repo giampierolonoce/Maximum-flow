@@ -22,6 +22,7 @@ namespace tags {
     struct is_sink {};
 
     struct flow_field {};
+    struct flow_star_field {};
 
     //fields of outgoing capacities
     struct capacity_field {};
@@ -193,10 +194,12 @@ MAIN() {
     real_t& in_flow_ = node.storage(in_flow{});
     real_t& obstruction_condition_ = node.storage(obstruction_condition{});
     field<real_t>& capacity_n = node.storage(tags::capacity_field{});
+    field<real_t>& flow_star = node.storage(tags::flow_star_field{});
     bool& is_source_ = node.storage(is_source{});
     bool& is_sink_ = node.storage(is_sink{});
 
-    if(node.current_time()> 100 && (node.uid % 3 == 0)){
+
+    if(node.current_time()> 80 && (node.uid % 3 == 0)){
         node.terminate();
     }
 
@@ -211,6 +214,7 @@ MAIN() {
                                         : shape::sphere;
 
     field<real_t> flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
+            flow_star = flow;
             return update_flow(CALL, flow);
             });
     
@@ -223,17 +227,15 @@ MAIN() {
     in_flow_= is_sink_? sum(mux(flow_>0, 0.0, -flow_)) : 0.0;
 
 
-    obstruction_condition_ = sum(flow_)!=-sum(nbr(CALL, flow_));
+    obstruction_condition_ = sum(flow_)!=-sum(flow_star);
 
 
-    node.storage(node_color{}) =  is_source_
+    node.storage(node_color{}) =  is_source_ || (sum(flow_star)>0 && !is_sink_)
                                     ? color(GREEN)
-                                    : sum(flow_)<0 || is_sink_
+                                    : sum(flow_star)<0 || is_sink_
                                         ? color(RED)
                                         : sum(mux(flow_>0, flow_, 0.0))>0
-                                            ? obstruction_condition_
-                                                    ? color(BLUE)
-                                                    : color(YELLOW)
+                                            ? color(YELLOW)
                                             : color(BLACK);
 }
 //! @brief Export types used by the main function.
@@ -274,6 +276,7 @@ using store_t = tuple_store<
     node_distance_from_source,          real_t,
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
+    flow_star_field,                    field<real_t>,
     out_flow,                           real_t,
     in_flow,                            real_t,
     obstruction_condition,              real_t,
@@ -340,7 +343,7 @@ int main() {
     // The network object type (interactive simulator with given options).
     using net_t = component::interactive_simulator<option::list>::net;
     std::cout << "/*\n";
-    for (int seed=1; seed<4; seed+=2) for (int num=200; num<=600; num+=200) {
+    for (int seed=1; seed<3; seed++) for (int num=200; num<=800; num+=600) {
         // The initialisation values (simulation name).
         auto init_v = common::make_tagged_tuple<option::name, option::dev_num, option::seed, option::plotter>("Starting Project", num, seed, &plotter);
         // Construct the network object.
