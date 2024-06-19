@@ -5,7 +5,7 @@
 //! Importing the FCPP library.
 #include "lib/fcpp.hpp"
 
-const int BOUND = 10;
+const int BOUND = 25;
 const int SOURCE_ID = 4;
 const int SINK_ID = 2;
 
@@ -196,6 +196,9 @@ MAIN() {
     bool& is_source_ = node.storage(is_source{});
     bool& is_sink_ = node.storage(is_sink{});
 
+    if(node.current_time()> 100 && (node.uid % 3 == 0)){
+        node.terminate();
+    }
 
     // Usage of node storage
     is_source_ = node.uid== SOURCE_ID;
@@ -211,7 +214,9 @@ MAIN() {
             return update_flow(CALL, flow);
             });
     
-    node.storage(node_size{}) = 8;
+    node.storage(node_size{}) = is_sink_ || is_source_ 
+                                ? 20
+                                : 10;
 
 
     out_flow_= is_source_? sum(mux(flow_>0, flow_, 0.0)) : 0.0;
@@ -221,9 +226,9 @@ MAIN() {
     obstruction_condition_ = sum(flow_)!=-sum(nbr(CALL, flow_));
 
 
-    node.storage(node_color{}) =  sum(flow_)>0
+    node.storage(node_color{}) =  is_source_
                                     ? color(GREEN)
-                                    : sum(flow_)<0
+                                    : sum(flow_)<0 || is_sink_
                                         ? color(RED)
                                         : sum(mux(flow_>0, flow_, 0.0))>0
                                             ? obstruction_condition_
