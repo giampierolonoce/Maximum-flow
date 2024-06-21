@@ -6,8 +6,8 @@
 #include "lib/fcpp.hpp"
 
 const int BOUND = 25;
-const int SOURCE_ID = 4;
-const int SINK_ID = 2;
+const int SOURCE_ID = 0;
+const int SINK_ID = 1;
 
 namespace fcpp {
 
@@ -29,6 +29,7 @@ namespace tags {
 
     struct node_distance_tau{};
     struct node_distance_sigma{};
+    struct node_distance_rho{};
 
     struct out_flow{};
     struct in_flow{};
@@ -146,10 +147,25 @@ FUN real_t sigma(ARGS, field<real_t> flow){ CODE
     });
 }
 
+FUN real_t rho(ARGS, field<real_t> flow){ CODE
+    bool& is_sink_ = node.storage(tags::is_sink{});
+
+    return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
+            field<real_t> tmp = map_hood([&](real_t d, real_t f){
+                return f<0 ? d+1 : INF;
+            }, distances, flow);
+
+            real_t m = min_hood(CALL, tmp);
+
+            return  is_sink_? 0.0 :m;
+    });
+}
+
 
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
         real_t& tau_ = node.storage(tags::node_distance_tau{});
         real_t& sigma_ = node.storage(tags::node_distance_sigma{});
+        real_t& rho_ = node.storage(tags::node_distance_rho{});
         field<real_t>& capacity_n = node.storage(tags::capacity_field{});
         field<real_t>& result = node.storage(tags::flow_field{});
 
@@ -159,16 +175,19 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
 
         tau_ =  tau(CALL , flow);
         sigma_ = sigma(CALL, flow);
+        rho_= rho(CALL, flow);
 
-        field<real_t> forward = truncate( (nbr(CALL, tau_)<tau_) 
-                                            * (capacity_n + flow),
+        field<real_t> forward = truncate( (capacity_n + flow)
+                                            * (nbr(CALL, tau_)<tau_),
                                         excess_n);
 
         field<real_t> backward = truncate(flow 
                                             * (nbr(CALL, sigma_)< sigma_),
                                         excess_n);
 
-        field<real_t> reduce = truncate(flow, excess_n);
+        field<real_t> reduce = truncate(flow
+                                            * (nbr(CALL, rho_)< rho_),
+                                        excess_n);
         
 
         result = -flow + mux(excess_n<0, 
@@ -201,7 +220,7 @@ MAIN() {
     bool& is_sink_ = node.storage(is_sink{});
 
 
-    if(node.current_time()> 80 && (node.uid % 3 == 0)){
+    if(node.current_time()> 50 && (node.uid % 10 ==2 )){
         node.terminate();
     }
 
@@ -274,8 +293,9 @@ using store_t = tuple_store<
     node_color,                         color,
     node_size,                          double,
     node_shape,                         shape,
-    node_distance_tau,              real_t,
-    node_distance_sigma,          real_t,
+    node_distance_tau,                  real_t,
+    node_distance_sigma,                real_t,
+    node_distance_rho,                   real_t,
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
     flow_star_field,                    field<real_t>,
@@ -345,7 +365,7 @@ int main() {
     // The network object type (interactive simulator with given options).
     using net_t = component::interactive_simulator<option::list>::net;
     std::cout << "/*\n";
-    for (int seed=1; seed<3; seed++) for (int num=200; num<=800; num+=600) {
+    for (int seed=1; seed<3; seed++) for (int num=300; num<=900; num+=300) {
         // The initialisation values (simulation name).
         auto init_v = common::make_tagged_tuple<option::name, option::dev_num, option::seed, option::plotter>("Starting Project", num, seed, &plotter);
         // Construct the network object.
