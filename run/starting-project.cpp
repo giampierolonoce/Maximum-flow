@@ -27,8 +27,8 @@ namespace tags {
     //fields of outgoing capacities
     struct capacity_field {};
 
-    struct node_distance_to_sink{};
-    struct node_distance_from_source{};
+    struct node_distance_tau{};
+    struct node_distance_sigma{};
 
     struct out_flow{};
     struct in_flow{};
@@ -112,7 +112,7 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
 
 
 
-FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
+FUN real_t tau(ARGS, field<real_t> flow){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
     bool& is_source_ = node.storage(tags::is_source{});
 
@@ -132,7 +132,7 @@ FUN real_t to_sink(ARGS, field<real_t> flow){ CODE
     });
 }
 
-FUN real_t from_source(ARGS, field<real_t> flow){ CODE
+FUN real_t sigma(ARGS, field<real_t> flow){ CODE
     bool& is_source_ = node.storage(tags::is_source{});
 
     return nbr(CALL, is_source_? 0.0 : INF, [&](field<real_t> distances){
@@ -148,8 +148,8 @@ FUN real_t from_source(ARGS, field<real_t> flow){ CODE
 
 
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
-        real_t& to_sink_ = node.storage(tags::node_distance_to_sink{});
-        real_t& from_source_ = node.storage(tags::node_distance_from_source{});
+        real_t& tau_ = node.storage(tags::node_distance_tau{});
+        real_t& sigma_ = node.storage(tags::node_distance_sigma{});
         field<real_t>& capacity_n = node.storage(tags::capacity_field{});
         field<real_t>& result = node.storage(tags::flow_field{});
 
@@ -157,15 +157,15 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        to_sink_ =  to_sink(CALL , flow);
-        from_source_ = from_source(CALL, flow);
+        tau_ =  tau(CALL , flow);
+        sigma_ = sigma(CALL, flow);
 
-        field<real_t> forward = truncate( (nbr(CALL, to_sink_)<to_sink_) 
+        field<real_t> forward = truncate( (nbr(CALL, tau_)<tau_) 
                                             * (capacity_n + flow),
                                         excess_n);
 
         field<real_t> backward = truncate(flow 
-                                            * (nbr(CALL, from_source_)< from_source_),
+                                            * (nbr(CALL, sigma_)< sigma_),
                                         excess_n);
 
         field<real_t> reduce = truncate(flow, excess_n);
@@ -173,7 +173,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
 
         result = -flow + mux(excess_n<0, 
                                 reduce, 
-                                mux(to_sink_<INF || from_source_==0, 
+                                mux(tau_<INF || sigma_==0, 
                                         forward ,
                                         backward));
         
@@ -191,7 +191,7 @@ MAIN() {
 
     // References
     
-    real_t& to_sink_ = node.storage(node_distance_to_sink{});
+    real_t& tau_ = node.storage(node_distance_tau{});
     real_t& out_flow_ = node.storage(out_flow{});
     real_t& in_flow_ = node.storage(in_flow{});
     real_t& obstruction_condition_ = node.storage(obstruction_condition{});
@@ -274,8 +274,8 @@ using store_t = tuple_store<
     node_color,                         color,
     node_size,                          double,
     node_shape,                         shape,
-    node_distance_to_sink,              real_t,
-    node_distance_from_source,          real_t,
+    node_distance_tau,              real_t,
+    node_distance_sigma,          real_t,
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
     flow_star_field,                    field<real_t>,
