@@ -152,12 +152,13 @@ FUN real_t rho(ARGS, field<real_t> flow){ CODE
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
             field<real_t> tmp = map_hood([&](real_t d, real_t f){
-                return f<0 ? d+1 : INF;
+                return f<0 ? d : INF;
             }, distances, flow);
 
-            real_t m = min_hood(CALL, tmp);
 
-            return  is_sink_? 0.0 :m;
+            real_t m = min_hood(CALL, tmp) +1;
+
+            return  sum(flow)>0? 0.0 :m;
     });
 }
 
@@ -367,7 +368,7 @@ int main() {
     // The network object type (interactive simulator with given options).
     using net_t = component::interactive_simulator<option::list>::net;
     std::cout << "/*\n";
-    for (int seed=1; seed<3; seed++) for (int num=300; num<=900; num+=300) {
+    for (int seed=5; seed<7; seed++) for (int num=300; num<=900; num+=300) {
         // The initialisation values (simulation name).
         auto init_v = common::make_tagged_tuple<option::name, option::dev_num, option::seed, option::plotter>("Starting Project", num, seed, &plotter);
         // Construct the network object.
