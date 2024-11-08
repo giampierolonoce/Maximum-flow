@@ -5,7 +5,7 @@
 //! Importing the FCPP library.
 #include "lib/fcpp.hpp"
 
-const int BOUND = 25;
+//const int BOUND = 25;
 const int SOURCE_ID = 0;
 const int SINK_ID = 1;
 
@@ -127,7 +127,7 @@ FUN real_t tau(ARGS, field<real_t> flow){ CODE
             real_t m = min_hood(CALL, tmp);
 
             return  is_sink_? 0.0
-                                :!is_source_ && m < BOUND
+                                :!is_source_
                                     ? m 
                                     : INF;
     });
@@ -163,23 +163,93 @@ FUN real_t rho(ARGS, field<real_t> flow){ CODE
 }
 
 
+FUN real_t tau_round(ARGS, field<real_t> flow){ CODE
+
+    bool& is_sink_ = node.storage(tags::is_sink{});
+
+    field<real_t> graph = capacity(CALL) + flow;
+
+    return nbr(CALL, 0, [&](field<real_t> rounds){
+            field<real_t> tmp = map_hood([&](real_t r, real_t g){
+                return g>0 ? r : 0;
+            }, rounds, graph);
+
+            real_t old_round = self(CALL, rounds);
+
+            real_t m = max_hood(CALL, tmp);
+
+            return is_sink_
+                    ? old_round + 1
+                    : std::max(old_round, m);
+    });
+}
+/*
+FUN real_t sigma_round(ARGS, field<real_t> flow){ CODE
+    bool& is_source_ = node.storage(tags::is_source{});
+    bool& is_sink_ = node.storage(tags::is_sink{});
+
+    return nbr(CALL, 0.0, [&](field<real_t> rounds){
+            field<real_t> tmp = map_hood([&](real_t r, real_t f){
+                return f>0 ? r : 0.0;
+            }, rounds, flow);
+
+            real_t m = max_hood(CALL, tmp);
+
+            real_t old_round = self(CALL, rounds);
+
+            return  is_source_
+                    ? old_round + 1
+                    : is_sink_ 
+                        ? 0.0 
+                        : std::max(old_round, m);
+    });
+}
+
+FUN real_t rho_round(ARGS, field<real_t> flow){ CODE
+    bool& is_sink_ = node.storage(tags::is_sink{});
+    
+    return nbr(CALL, 0.0, [&](field<real_t> rounds){
+            field<real_t> tmp = map_hood([&](real_t r, real_t f){
+                return f<0 ? r : 0.0;
+            }, rounds, flow);
+
+            real_t m = max_hood(CALL, tmp);
+
+            real_t old_round = self(CALL, rounds);
+
+            return is_sink_ 
+                        ? old_round + 1 
+                        : std::max(old_round, m);
+    });
+}
+*/
+
+
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
-        real_t& tau_ = node.storage(tags::node_distance_tau{});
+        real_t& tau_round_ = node.storage(tags::node_distance_tau{});
         real_t& sigma_ = node.storage(tags::node_distance_sigma{});
         real_t& rho_ = node.storage(tags::node_distance_rho{});
         field<real_t>& capacity_n = node.storage(tags::capacity_field{});
         field<real_t>& result = node.storage(tags::flow_field{});
+        bool& is_source_ = node.storage(tags::is_source{});
 
         capacity_n = capacity(CALL);
 
         real_t excess_n = excess(CALL, flow);
 
-        tau_ =  tau(CALL , flow);
+        real_t tau_ = tau(CALL, flow);
+
+        tau_round_ =  tau_round(CALL , flow);
+        field<real_t> tau_round_star = nbr(CALL, 0.0, tau_round_);
+        real_t old_tau_round_ = self(CALL, tau_round_star);
+
         sigma_ = sigma(CALL, flow);
-        rho_= rho(CALL, flow);
+
+        rho_  = rho(CALL, flow);
 
         field<real_t> forward = truncate( (capacity_n + flow)
-                                            * (nbr(CALL, tau_)<tau_),
+                                            * (tau_round_star== tau_round_)
+                                            * (nbr(CALL, tau_)< tau_),
                                         excess_n);
 
         field<real_t> backward = truncate(flow 
@@ -193,7 +263,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
 
         result = -flow + mux(excess_n<0, 
                                 reduce, 
-                                mux(tau_<INF || sigma_==0, 
+                                mux(tau_round_ > old_tau_round_, 
                                         forward ,
                                         backward));
         
@@ -221,9 +291,7 @@ MAIN() {
     bool& is_sink_ = node.storage(is_sink{});
 
 
-    if(node.current_time()> 50 && (node.uid % 10 ==2 )){
-        node.terminate();
-    }
+    //if(node.current_time()> 50 && (node.uid % 10 ==2 )){node.terminate();}
 
     // Usage of node storage
     is_source_ = node.uid== SOURCE_ID;
@@ -368,7 +436,7 @@ int main() {
     // The network object type (interactive simulator with given options).
     using net_t = component::interactive_simulator<option::list>::net;
     std::cout << "/*\n";
-    for (int seed=5; seed<7; seed++) for (int num=300; num<=900; num+=300) {
+    for (int seed=5; seed<7; seed++) for (int num=600; num<=900; num+=300) {
         // The initialisation values (simulation name).
         auto init_v = common::make_tagged_tuple<option::name, option::dev_num, option::seed, option::plotter>("Starting Project", num, seed, &plotter);
         // Construct the network object.
