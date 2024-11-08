@@ -109,6 +109,26 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
                     :sum( flow);
 }
 
+FUN real_t tau_round(ARGS, field<real_t> flow){ CODE
+
+    bool& is_sink_ = node.storage(tags::is_sink{});
+
+    field<real_t> graph = capacity(CALL) + flow;
+
+    return nbr(CALL, 0, [&](field<real_t> rounds){
+            field<real_t> tmp = map_hood([&](real_t r, real_t g){
+                return g>0 ? r : 0;
+            }, rounds, graph);
+
+            real_t old_round = self(CALL, rounds);
+
+            real_t m = max_hood(CALL, tmp);
+
+            return is_sink_
+                    ? old_round + 1
+                    : std::max(old_round, m);
+    });
+}
 
 
 
@@ -119,10 +139,15 @@ FUN real_t tau(ARGS, field<real_t> flow){ CODE
 
     field<real_t> graph = capacity(CALL) + flow;
 
+    real_t tau_round_ =  tau_round(CALL , flow);
+    field<real_t> tau_round_star = nbr(CALL, 0.0, tau_round_);
+    real_t old_tau_round_ = self(CALL, tau_round_star);
+
+
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
-            field<real_t> tmp = map_hood([&](real_t d, real_t g){
-                return g>0 ? d+1 : INF;
-            }, distances, graph);
+            field<real_t> tmp = map_hood([&](real_t d, real_t g, real_t r){
+                return g>0 && r>old_tau_round_ ? d+1 : INF;
+            }, distances, graph, tau_round_star );
 
             real_t m = min_hood(CALL, tmp);
 
@@ -163,26 +188,7 @@ FUN real_t rho(ARGS, field<real_t> flow){ CODE
 }
 
 
-FUN real_t tau_round(ARGS, field<real_t> flow){ CODE
 
-    bool& is_sink_ = node.storage(tags::is_sink{});
-
-    field<real_t> graph = capacity(CALL) + flow;
-
-    return nbr(CALL, 0, [&](field<real_t> rounds){
-            field<real_t> tmp = map_hood([&](real_t r, real_t g){
-                return g>0 ? r : 0;
-            }, rounds, graph);
-
-            real_t old_round = self(CALL, rounds);
-
-            real_t m = max_hood(CALL, tmp);
-
-            return is_sink_
-                    ? old_round + 1
-                    : std::max(old_round, m);
-    });
-}
 /*
 FUN real_t sigma_round(ARGS, field<real_t> flow){ CODE
     bool& is_source_ = node.storage(tags::is_source{});
@@ -226,7 +232,7 @@ FUN real_t rho_round(ARGS, field<real_t> flow){ CODE
 
 
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
-        real_t& tau_round_ = node.storage(tags::node_distance_tau{});
+        real_t& tau_= node.storage(tags::node_distance_tau{});
         real_t& sigma_ = node.storage(tags::node_distance_sigma{});
         real_t& rho_ = node.storage(tags::node_distance_rho{});
         field<real_t>& capacity_n = node.storage(tags::capacity_field{});
@@ -237,18 +243,15 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        real_t tau_ = tau(CALL, flow);
+        tau_ = tau(CALL, flow);
 
-        tau_round_ =  tau_round(CALL , flow);
-        field<real_t> tau_round_star = nbr(CALL, 0.0, tau_round_);
-        real_t old_tau_round_ = self(CALL, tau_round_star);
+        
 
         sigma_ = sigma(CALL, flow);
 
         rho_  = rho(CALL, flow);
 
         field<real_t> forward = truncate( (capacity_n + flow)
-                                            * (tau_round_star== tau_round_)
                                             * (nbr(CALL, tau_)< tau_),
                                         excess_n);
 
@@ -263,7 +266,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
 
         result = -flow + mux(excess_n<0, 
                                 reduce, 
-                                mux(tau_round_ > old_tau_round_, 
+                                mux(tau_<INF || is_source_, 
                                         forward ,
                                         backward));
         
@@ -291,7 +294,7 @@ MAIN() {
     bool& is_sink_ = node.storage(is_sink{});
 
 
-    //if(node.current_time()> 50 && (node.uid % 10 ==2 )){node.terminate();}
+    if(node.current_time()> 50 && (node.uid % 10 ==2 )){node.terminate();}
 
     // Usage of node storage
     is_source_ = node.uid== SOURCE_ID;
