@@ -221,7 +221,7 @@ MAIN() {
     bool& is_sink_ = node.storage(is_sink{});
 
 
-    if(node.current_time()> 50 && (node.uid % 10 ==2 )){
+    if(node.current_time()> 50 && (node.uid % 30 ==2 )){
         node.terminate();
     }
 
@@ -368,7 +368,7 @@ int main() {
     // The network object type (interactive simulator with given options).
     using net_t = component::interactive_simulator<option::list>::net;
     std::cout << "/*\n";
-    for (int seed=5; seed<7; seed++) for (int num=300; num<=900; num+=300) {
+    for (int seed=5; seed<7; seed++) for (int num=600; num<=900; num+=300) {
         // The initialisation values (simulation name).
         auto init_v = common::make_tagged_tuple<option::name, option::dev_num, option::seed, option::plotter>("Starting Project", num, seed, &plotter);
         // Construct the network object.
