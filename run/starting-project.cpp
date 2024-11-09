@@ -129,7 +129,7 @@ FUN int tau_round(ARGS, field<real_t> flow){ CODE
                     ? old_round + 1
                     :is_source_
                         ? 0
-                        : std::max(old_round, m);
+                        : m;
     });
 }
 
@@ -146,11 +146,15 @@ FUN real_t tau(ARGS, field<real_t> flow){ CODE
     field<int> tau_round_star = nbr(CALL, 0, tau_round_);
     int old_tau_round_ = self(CALL, tau_round_star);
 
+    field<bool> is_not_source_field = nbr(CALL, !is_source_);
+
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
-            field<real_t> tmp = map_hood([&](real_t d, real_t g, int r){
-                return g>0 && r>old_tau_round_? d+1 : INF;
-            }, distances, graph, tau_round_star );
+            field<real_t> tmp = map_hood([&](real_t d, real_t g, int r, bool b){
+                return g>0 && r>old_tau_round_ && b 
+                        ? d+1 
+                        : INF;
+            }, distances, graph, tau_round_star, is_not_source_field );
 
             real_t m = min_hood(CALL, tmp);
 
@@ -259,7 +263,8 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
         rho_  = rho(CALL, flow);
 
         field<real_t> forward = truncate( (capacity_n + flow)
-                                            * (nbr(CALL, tau_)< tau_),
+                                            * (nbr(CALL, tau_)< tau_)
+                                            * nbr(CALL, !is_source_),
                                         excess_n);
 
         field<real_t> backward = truncate(flow 
