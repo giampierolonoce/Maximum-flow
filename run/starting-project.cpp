@@ -109,24 +109,27 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
                     :sum( flow);
 }
 
-FUN real_t tau_round(ARGS, field<real_t> flow){ CODE
+FUN int tau_round(ARGS, field<real_t> flow){ CODE
 
     bool& is_sink_ = node.storage(tags::is_sink{});
+    bool& is_source_ = node.storage(tags::is_source{});
 
     field<real_t> graph = capacity(CALL) + flow;
 
-    return nbr(CALL, 0, [&](field<real_t> rounds){
-            field<real_t> tmp = map_hood([&](real_t r, real_t g){
+    return nbr(CALL, 0, [&](field<int> rounds){
+            field<real_t> tmp = map_hood([&](int r, real_t g){
                 return g>0 ? r : 0;
             }, rounds, graph);
 
-            real_t old_round = self(CALL, rounds);
+            int old_round = self(CALL, rounds);
 
-            real_t m = max_hood(CALL, tmp);
+            int m = max_hood(CALL, tmp);
 
             return is_sink_
                     ? old_round + 1
-                    : std::max(old_round, m);
+                    :is_source_
+                        ? 0
+                        : std::max(old_round, m);
     });
 }
 
@@ -139,27 +142,52 @@ FUN real_t tau(ARGS, field<real_t> flow){ CODE
 
     field<real_t> graph = capacity(CALL) + flow;
 
-    real_t tau_round_ =  tau_round(CALL , flow);
-    field<real_t> tau_round_star = nbr(CALL, 0.0, tau_round_);
-    real_t old_tau_round_ = self(CALL, tau_round_star);
+    int tau_round_ =  tau_round(CALL , flow);
+    field<int> tau_round_star = nbr(CALL, 0, tau_round_);
+    int old_tau_round_ = self(CALL, tau_round_star);
 
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
-            field<real_t> tmp = map_hood([&](real_t d, real_t g, real_t r){
-                return g>0 && r>old_tau_round_ ? d+1 : INF;
+            field<real_t> tmp = map_hood([&](real_t d, real_t g, int r){
+                return g>0 && r>old_tau_round_? d+1 : INF;
             }, distances, graph, tau_round_star );
 
             real_t m = min_hood(CALL, tmp);
 
-            return  is_sink_? 0.0
-                                :!is_source_
-                                    ? m 
-                                    : INF;
+            return  is_sink_? 0.0 : m ;
+            });
+}
+
+/* 
+FUN real_t sigma_round(ARGS, field<real_t> flow){ CODE
+    bool& is_source_ = node.storage(tags::is_source{});
+    bool& is_sink_ = node.storage(tags::is_sink{});
+
+    return nbr(CALL, 0.0, [&](field<real_t> rounds){
+            field<real_t> tmp = map_hood([&](real_t r, real_t f){
+                return f>0 ? r : 0.0;
+            }, rounds, flow);
+
+            real_t m = max_hood(CALL, tmp);
+
+            real_t old_round = self(CALL, rounds);
+
+            return  is_source_
+                    ? old_round + 1
+                        : std::max(old_round, m);
     });
 }
 
+*/
+
+
 FUN real_t sigma(ARGS, field<real_t> flow){ CODE
     bool& is_source_ = node.storage(tags::is_source{});
+/* 
+    real_t sigma_round_ =  sigma_round(CALL , flow);
+    field<real_t> sigma_round_star = nbr(CALL, 0.0, sigma_round_);
+    real_t old_sigma_round_ = self(CALL, sigma_round_star);
+    */
 
     return nbr(CALL, is_source_? 0.0 : INF, [&](field<real_t> distances){
             field<real_t> tmp = map_hood([&](real_t d, real_t f){
@@ -190,27 +218,6 @@ FUN real_t rho(ARGS, field<real_t> flow){ CODE
 
 
 /*
-FUN real_t sigma_round(ARGS, field<real_t> flow){ CODE
-    bool& is_source_ = node.storage(tags::is_source{});
-    bool& is_sink_ = node.storage(tags::is_sink{});
-
-    return nbr(CALL, 0.0, [&](field<real_t> rounds){
-            field<real_t> tmp = map_hood([&](real_t r, real_t f){
-                return f>0 ? r : 0.0;
-            }, rounds, flow);
-
-            real_t m = max_hood(CALL, tmp);
-
-            real_t old_round = self(CALL, rounds);
-
-            return  is_source_
-                    ? old_round + 1
-                    : is_sink_ 
-                        ? 0.0 
-                        : std::max(old_round, m);
-    });
-}
-
 FUN real_t rho_round(ARGS, field<real_t> flow){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
     
@@ -266,7 +273,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
 
         result = -flow + mux(excess_n<0, 
                                 reduce, 
-                                mux(tau_<INF || is_source_, 
+                                mux(tau_<INF, 
                                         forward ,
                                         backward));
         
@@ -294,7 +301,7 @@ MAIN() {
     bool& is_sink_ = node.storage(is_sink{});
 
 
-    if(node.current_time()> 50 && (node.uid % 10 ==2 )){node.terminate();}
+    if(node.current_time()> 50 && (node.uid % 30 ==2 )){node.terminate();}
 
     // Usage of node storage
     is_source_ = node.uid== SOURCE_ID;
@@ -332,7 +339,7 @@ MAIN() {
                                             : color(BLACK);
 }
 //! @brief Export types used by the main function.
-FUN_EXPORT main_t = export_list<device_t, field<real_t>, real_t, bool, field<int>>;
+FUN_EXPORT main_t = export_list<device_t, field<real_t>, real_t, bool, int,  field<int>>;
 
 } // namespace coordination
 
