@@ -156,7 +156,11 @@ FUN real_t tau(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
 
             real_t m = min_hood(CALL, tmp) + 1;
 
-            return  is_sink_? 0.0 : m ;
+            return  is_sink_
+                        ? 0.0 
+                        : is_source_
+                            ? INF //sono indecisooooooooo
+                            : m ;
             });
 }
 
@@ -222,25 +226,24 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
 
         rho_  = rho(CALL, flow_star);
 
-        field<real_t> forward = truncate( (capacity_ + flow_star)
+        field<real_t> forward = (tau_round_ > old_tau_round && excess_>0)
+                                    * truncate( (capacity_ + flow_star)
                                             * (nbr(CALL, tau_)< tau_)
                                             * (nbr(CALL, !is_source_)),
                                         excess_);
 
-        field<real_t> backward = truncate(flow_star 
+        field<real_t> backward = (tau_round_ == old_tau_round && excess_>0) 
+                                    * truncate(flow_star 
                                             * (nbr(CALL, sigma_)< sigma_),
                                         excess_);
 
-        field<real_t> reduce = truncate(flow_star
+        field<real_t> reduce = (excess_<0) 
+                                    * truncate(flow_star
                                             * (nbr(CALL, rho_)< rho_),
                                         excess_);
         
 
-        flow_ = -flow_star + mux(excess_<0, 
-                                reduce, 
-                                mux(tau_round_ > old_tau_round, 
-                                        forward ,
-                                        backward));
+        flow_ = -flow_star + forward + backward + reduce;
         
         return flow_;
 }
