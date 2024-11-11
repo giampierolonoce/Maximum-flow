@@ -239,7 +239,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
 
         flow_ = -flow_star + mux(excess_<0, 
                                 reduce, 
-                                mux(tau_<INF, 
+                                mux(tau_round_ > old_tau_round, 
                                         forward ,
                                         backward));
         
