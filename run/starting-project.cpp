@@ -116,10 +116,12 @@ FUN int tau_round(ARGS, field<real_t> flow){ CODE
 
     field<real_t> graph = capacity(CALL) + flow;
 
+    field<bool> is_not_source_field = nbr(CALL, !is_source_);
+
     return nbr(CALL, 0, [&](field<int> rounds){
-            field<real_t> tmp = map_hood([&](int r, real_t g){
-                return g>0 ? r : 0;
-            }, rounds, graph);
+            field<real_t> tmp = map_hood([&](int r, real_t g, bool b){
+                return g>0 && b ? r : 0;
+            }, rounds, graph, is_not_source_field);
 
             int old_round = self(CALL, rounds);
 
@@ -127,23 +129,19 @@ FUN int tau_round(ARGS, field<real_t> flow){ CODE
 
             return is_sink_
                     ? old_round + 1
-                    :is_source_
-                        ? 0
-                        : m;
+                    : std::max(m, old_round);
     });
 }
 
 
 
 
-FUN real_t tau(ARGS, field<real_t> flow){ CODE
+FUN real_t tau(ARGS, field<real_t> flow, field<int> tau_round_star){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
     bool& is_source_ = node.storage(tags::is_source{});
 
     field<real_t> graph = capacity(CALL) + flow;
 
-    int tau_round_ =  tau_round(CALL , flow);
-    field<int> tau_round_star = nbr(CALL, 0, tau_round_);
     int old_tau_round_ = self(CALL, tau_round_star);
 
     field<bool> is_not_source_field = nbr(CALL, !is_source_);
@@ -185,7 +183,7 @@ FUN real_t sigma_round(ARGS, field<real_t> flow){ CODE
 */
 
 
-FUN real_t sigma(ARGS, field<real_t> flow){ CODE
+FUN real_t sigma(ARGS, field<real_t> flow, field<int> tau_round_star){ CODE
     bool& is_source_ = node.storage(tags::is_source{});
 /* 
     real_t sigma_round_ =  sigma_round(CALL , flow);
@@ -193,10 +191,12 @@ FUN real_t sigma(ARGS, field<real_t> flow){ CODE
     real_t old_sigma_round_ = self(CALL, sigma_round_star);
     */
 
+    int old_tau_round_ = self(CALL, tau_round_star);
+
     return nbr(CALL, is_source_? 0.0 : INF, [&](field<real_t> distances){
-            field<real_t> tmp = map_hood([&](real_t d, real_t f){
-                return f>0 ? d+1 : INF;
-            }, distances, flow);
+            field<real_t> tmp = map_hood([&](real_t d, real_t f, real_t r){
+                return f>0 && r<= old_tau_round_? d+1 : INF;
+            }, distances, flow, tau_round_star);
 
             real_t m = min_hood(CALL, tmp);
 
@@ -254,17 +254,21 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow){ CODE
 
         real_t excess_n = excess(CALL, flow);
 
-        tau_ = tau(CALL, flow);
+        int tau_round_ =  tau_round(CALL , flow);
+        field<int> tau_round_star = nbr(CALL, 0, tau_round_);
+        int old_tau_round_ = self(CALL, tau_round_star);
+
+        tau_ = tau(CALL, flow, tau_round_star);
 
         
 
-        sigma_ = sigma(CALL, flow);
+        sigma_ = sigma(CALL, flow, tau_round_star);
 
         rho_  = rho(CALL, flow);
 
         field<real_t> forward = truncate( (capacity_n + flow)
                                             * (nbr(CALL, tau_)< tau_)
-                                            * nbr(CALL, !is_source_),
+                                            * (nbr(CALL, !is_source_)),
                                         excess_n);
 
         field<real_t> backward = truncate(flow 
@@ -320,6 +324,7 @@ MAIN() {
 
     field<real_t> flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow){
             flow_star = flow;
+            obstruction_condition_ = tau_round(CALL, flow);
             return update_flow(CALL, flow);
             });
     
@@ -332,7 +337,7 @@ MAIN() {
     in_flow_= is_sink_? sum(mux(flow_>0, 0.0, -flow_)) : 0.0;
 
 
-    obstruction_condition_ = sum(flow_)!=-sum(flow_star);
+    //obstruction_condition_ = is_source_? tau_ : 0.0; //sum(flow_)!=-sum(flow_star);
 
 
     node.storage(node_color{}) =  is_source_ || (sum(flow_star)>0 && !is_sink_)
@@ -395,7 +400,7 @@ using store_t = tuple_store<
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
-    obstruction_condition,      aggregator::max<real_t>
+    obstruction_condition,      aggregator::min<real_t>
 >;
 using plot_t = plot::split<
     dev_num,
