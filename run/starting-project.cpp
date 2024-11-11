@@ -142,14 +142,14 @@ FUN real_t tau(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
 
     field<real_t> graph = capacity(CALL) + flow_star;
 
-    int old_tau_round_ = self(CALL, tau_round_star);
+    int old_tau_round = self(CALL, tau_round_star);
 
     field<bool> is_not_source_field = nbr(CALL, !is_source_);
 
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
             field<real_t> tmp = map_hood([&](real_t d, real_t g, int r, bool b){
-                return g>0 && r>old_tau_round_ && b 
+                return g>0 && r>old_tau_round && b 
                         ? d+1 
                         : INF;
             }, distances, graph, tau_round_star, is_not_source_field );
@@ -164,11 +164,11 @@ FUN real_t tau(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
 FUN real_t sigma(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
     bool& is_source_ = node.storage(tags::is_source{});
 
-    int old_tau_round_ = self(CALL, tau_round_star);
+    int old_tau_round = self(CALL, tau_round_star);
 
     return nbr(CALL, is_source_? 0.0 : INF, [&](field<real_t> distances){
             field<real_t> tmp = map_hood([&](real_t d, real_t f, real_t r){
-                return f>0 && r<= old_tau_round_? d+1 : INF;
+                return f>0 && r<= old_tau_round? d+1 : INF;
             }, distances, flow_star, tau_round_star);
 
             real_t m = min_hood(CALL, tmp);
@@ -198,17 +198,17 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
         real_t& tau_= node.storage(tags::node_distance_tau{});
         real_t& sigma_ = node.storage(tags::node_distance_sigma{});
         real_t& rho_ = node.storage(tags::node_distance_rho{});
-        field<real_t>& capacity_n = node.storage(tags::capacity_field{});
-        field<real_t>& result = node.storage(tags::flow_field{});
+        field<real_t>& capacity_ = node.storage(tags::capacity_field{});
+        field<real_t>& flow_ = node.storage(tags::flow_field{});
         bool& is_source_ = node.storage(tags::is_source{});
 
-        capacity_n = capacity(CALL);
+        capacity_ = capacity(CALL);
 
-        real_t excess_n = excess(CALL, flow_star);
+        real_t excess_ = excess(CALL, flow_star);
 
         int tau_round_ =  tau_round(CALL , flow_star);
         field<int> tau_round_star = nbr(CALL, 0, tau_round_);
-        int old_tau_round_ = self(CALL, tau_round_star);
+        int old_tau_round = self(CALL, tau_round_star);
 
         tau_ = tau(CALL, flow_star, tau_round_star);
 
@@ -218,28 +218,28 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
 
         rho_  = rho(CALL, flow_star);
 
-        field<real_t> forward = truncate( (capacity_n + flow_star)
+        field<real_t> forward = truncate( (capacity_ + flow_star)
                                             * (nbr(CALL, tau_)< tau_)
                                             * (nbr(CALL, !is_source_)),
-                                        excess_n);
+                                        excess_);
 
         field<real_t> backward = truncate(flow_star 
                                             * (nbr(CALL, sigma_)< sigma_)
-                                            * (old_tau_round_ >= tau_round_star),
-                                        excess_n);
+                                            * (old_tau_round >= tau_round_star),
+                                        excess_);
 
         field<real_t> reduce = truncate(flow_star
                                             * (nbr(CALL, rho_)< rho_),
-                                        excess_n);
+                                        excess_);
         
 
-        result = -flow_star + mux(excess_n<0, 
+        flow_ = -flow_star + mux(excess_<0, 
                                 reduce, 
                                 mux(tau_<INF, 
                                         forward ,
                                         backward));
         
-        return result;
+        return flow_;
 }
 
 
