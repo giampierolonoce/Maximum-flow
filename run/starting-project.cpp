@@ -228,8 +228,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
                                         excess_);
 
         field<real_t> backward = truncate(flow_star 
-                                            * (nbr(CALL, sigma_)< sigma_)
-                                            * (old_tau_round >= tau_round_star),
+                                            * (nbr(CALL, sigma_)< sigma_),
                                         excess_);
 
         field<real_t> reduce = truncate(flow_star
