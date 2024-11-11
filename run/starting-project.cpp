@@ -118,12 +118,12 @@ FUN int tau_round(ARGS, field<real_t> flow_star){ CODE
 
     field<bool> is_not_source_field = nbr(CALL, !is_source_);
 
-    return nbr(CALL, 0, [&](field<int> rounds){
+    return nbr(CALL, 0, [&](field<int> tau_round_star){
             field<real_t> tmp = map_hood([&](int r, real_t g, bool b){
                 return g>0 && b ? r : 0;
-            }, rounds, graph, is_not_source_field);
+            }, tau_round_star, graph, is_not_source_field);
 
-            int old_round = self(CALL, rounds);
+            int old_round = self(CALL, tau_round_star);
 
             int m = max_hood(CALL, tmp);
 
@@ -147,14 +147,14 @@ FUN real_t tau(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
     field<bool> is_not_source_field = nbr(CALL, !is_source_);
 
 
-    return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
-            field<real_t> tmp = map_hood([&](real_t d, real_t g, int r, bool b){
+    return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> tau_star){
+            field<real_t> tmp = map_hood([&](real_t t, real_t g, int r, bool b){
                 return g>0 && r>old_tau_round && b 
-                        ? d+1 
+                        ? t 
                         : INF;
-            }, distances, graph, tau_round_star, is_not_source_field );
+            }, tau_star, graph, tau_round_star, is_not_source_field );
 
-            real_t m = min_hood(CALL, tmp);
+            real_t m = min_hood(CALL, tmp) + 1;
 
             return  is_sink_? 0.0 : m ;
             });
@@ -166,12 +166,14 @@ FUN real_t sigma(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
 
     int old_tau_round = self(CALL, tau_round_star);
 
-    return nbr(CALL, is_source_? 0.0 : INF, [&](field<real_t> distances){
-            field<real_t> tmp = map_hood([&](real_t d, real_t f, real_t r){
-                return f>0 && r<= old_tau_round? d+1 : INF;
-            }, distances, flow_star, tau_round_star);
+    return nbr(CALL, is_source_? 0.0 : INF, [&](field<real_t> sigma_star){
+            field<real_t> tmp = map_hood([&](real_t s, real_t f, real_t r){
+                return f>0 && r<= old_tau_round
+                            ? s 
+                            : INF;
+            }, sigma_star, flow_star, tau_round_star);
 
-            real_t m = min_hood(CALL, tmp);
+            real_t m = min_hood(CALL, tmp) + 1;
 
             return  is_source_? 0.0 :m;
     });
@@ -180,13 +182,15 @@ FUN real_t sigma(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
 FUN real_t rho(ARGS, field<real_t> flow_star){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
 
-    return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> distances){
-            field<real_t> tmp = map_hood([&](real_t d, real_t f){
-                return f<0 ? d : INF;
-            }, distances, flow_star);
+    return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> rho_star){
+            field<real_t> tmp = map_hood([&](real_t r, real_t f){
+                return f<0 
+                            ? r 
+                            : INF;
+            }, rho_star, flow_star);
 
 
-            real_t m = min_hood(CALL, tmp) +1;
+            real_t m = min_hood(CALL, tmp) + 1;
 
             return  is_sink_? 0.0 :m;
     });
