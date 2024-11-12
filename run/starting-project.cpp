@@ -116,12 +116,12 @@ FUN int tau_round(ARGS, field<real_t> flow_star){ CODE
 
     field<real_t> graph = capacity(CALL) + flow_star;
 
-    field<bool> is_not_source_field = nbr(CALL, !is_source_);
-
     return nbr(CALL, 0, [&](field<int> tau_round_star){
-            field<real_t> tmp = map_hood([&](int r, real_t g, bool b){
-                return g>0 && b ? r : 0;
-            }, tau_round_star, graph, is_not_source_field);
+            field<real_t> tmp = map_hood([&](int r, real_t g){
+                return g>0 
+                    ? r 
+                    : 0;
+            }, tau_round_star, graph);
 
             int old_round = self(CALL, tau_round_star);
 
@@ -136,7 +136,7 @@ FUN int tau_round(ARGS, field<real_t> flow_star){ CODE
 
 
 
-FUN real_t tau(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
+FUN real_t tau(ARGS, field<real_t> flow_star, field<int> tau_round_star, int tau_round_){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
     bool& is_source_ = node.storage(tags::is_source{});
 
@@ -147,7 +147,7 @@ FUN real_t tau(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> tau_star){
             field<real_t> tmp = map_hood([&](real_t t, real_t g, int r){
-                return g>0 && r>old_tau_round  
+                return g>0 && r==tau_round_
                         ? t 
                         : INF;
             }, tau_star, graph, tau_round_star);
@@ -156,7 +156,7 @@ FUN real_t tau(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
 
             return  is_sink_
                         ? 0.0 
-                        : is_source_
+                        : is_source_ || tau_round_ == old_tau_round
                             ? INF 
                             : m ;
             });
@@ -216,7 +216,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
         field<int> tau_round_star = nbr(CALL, 0, tau_round_);
         int old_tau_round = self(CALL, tau_round_star);
 
-        tau_ = tau(CALL, flow_star, tau_round_star);
+        tau_ = tau(CALL, flow_star, tau_round_star, tau_round_);
 
         
 
