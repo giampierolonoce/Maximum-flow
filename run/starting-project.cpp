@@ -181,15 +181,17 @@ FUN real_t sigma(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
     });
 }
 
-FUN real_t rho(ARGS, field<real_t> flow_star){ CODE
+FUN real_t rho(ARGS, field<real_t> flow_star, field<int> tau_round_star, int tau_round_ ){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
 
+    int old_tau_round = self(CALL, tau_round_star);
+
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> rho_star){
-            field<real_t> tmp = map_hood([&](real_t r, real_t f){
-                return f<0 
+            field<real_t> tmp = map_hood([&](real_t r, real_t f, int t){
+                return f<0 && t==tau_round_
                             ? r 
                             : INF;
-            }, rho_star, flow_star);
+            }, rho_star, flow_star, tau_round_star);
 
 
             real_t m = min_hood(CALL, tmp) + 1;
@@ -222,7 +224,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
 
         sigma_ = sigma(CALL, flow_star, tau_round_star);
 
-        rho_  = rho(CALL, flow_star);
+        rho_  = rho(CALL, flow_star, tau_round_star, tau_round_);
 
         field<real_t> forward = (tau_round_ > old_tau_round && excess_>0)
                                     * truncate( (capacity_ + flow_star)
