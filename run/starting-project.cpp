@@ -35,6 +35,7 @@ namespace tags {
     struct in_flow{};
 
     struct obstruction_condition{};
+    struct another_condition{};
 
     struct dev_num {};
 }
@@ -117,15 +118,17 @@ FUN int tau_round(ARGS, field<real_t> flow_star){ CODE
     field<real_t> graph = capacity(CALL) + flow_star;
 
     return nbr(CALL, 0, [&](field<int> tau_round_star){
+            
             field<real_t> tmp = map_hood([&](int r, real_t g){
                 return g>0 
                     ? r 
                     : 0;
             }, tau_round_star, graph);
+            int m = max_hood(CALL, tmp);
 
             int old_round = self(CALL, tau_round_star);
 
-            int m = max_hood(CALL, tmp);
+            
 
             return is_sink_
                     ? old_round + 1
@@ -136,44 +139,42 @@ FUN int tau_round(ARGS, field<real_t> flow_star){ CODE
 
 
 
-FUN real_t tau(ARGS, field<real_t> flow_star, field<int> tau_round_star, int tau_round_){ CODE
+FUN real_t tau(ARGS, field<real_t> flow_star){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
     bool& is_source_ = node.storage(tags::is_source{});
 
     field<real_t> graph = capacity(CALL) + flow_star;
 
-    int old_tau_round = self(CALL, tau_round_star);
-
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> tau_star){
-            field<real_t> tmp = map_hood([&](real_t t, real_t g, int r){
-                return g>0 && r==tau_round_
+            field<real_t> tmp = map_hood([&](real_t t, real_t g){
+                return g>0
                         ? t 
                         : INF;
-            }, tau_star, graph, tau_round_star);
+            }, tau_star, graph);
 
             real_t m = min_hood(CALL, tmp) + 1;
 
+            real_t old_tau = self(CALL, tau_star);
+
             return  is_sink_
                         ? 0.0 
-                        : is_source_ || tau_round_ == old_tau_round
+                        : is_source_
                             ? INF 
-                            : m ;
+                                : m ;
             });
 }
 
 
-FUN real_t sigma(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
+FUN real_t sigma(ARGS, field<real_t> flow_star){ CODE
     bool& is_source_ = node.storage(tags::is_source{});
 
-    int old_tau_round = self(CALL, tau_round_star);
-
     return nbr(CALL, is_source_? 0.0 : INF, [&](field<real_t> sigma_star){
-            field<real_t> tmp = map_hood([&](real_t s, real_t f, real_t r){
-                return f>0 && r<= old_tau_round
+            field<real_t> tmp = map_hood([&](real_t s, real_t f){
+                return f>0
                             ? s 
                             : INF;
-            }, sigma_star, flow_star, tau_round_star);
+            }, sigma_star, flow_star);
 
             real_t m = min_hood(CALL, tmp) + 1;
 
@@ -181,17 +182,16 @@ FUN real_t sigma(ARGS, field<real_t> flow_star, field<int> tau_round_star){ CODE
     });
 }
 
-FUN real_t rho(ARGS, field<real_t> flow_star, field<int> tau_round_star, int tau_round_ ){ CODE
+FUN real_t rho(ARGS, field<real_t> flow_star ){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
 
-    int old_tau_round = self(CALL, tau_round_star);
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> rho_star){
-            field<real_t> tmp = map_hood([&](real_t r, real_t f, int t){
-                return f<0 && t==tau_round_
+            field<real_t> tmp = map_hood([&](real_t r, real_t f){
+                return f<0
                             ? r 
                             : INF;
-            }, rho_star, flow_star, tau_round_star);
+            }, rho_star, flow_star);
 
 
             real_t m = min_hood(CALL, tmp) + 1;
@@ -216,27 +216,25 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
 
         int tau_round_ =  tau_round(CALL , flow_star);
         field<int> tau_round_star = nbr(CALL, 0, tau_round_);
-        int old_tau_round = self(CALL, tau_round_star);
+        int old_tau_round_ = self(CALL, tau_round_star);
 
-        tau_ = tau(CALL, flow_star, tau_round_star, tau_round_);
+        tau_ = tau(CALL, flow_star);
 
-        
+        sigma_ = sigma(CALL, flow_star);
 
-        sigma_ = sigma(CALL, flow_star, tau_round_star);
+        rho_  = rho(CALL, flow_star);
 
-        rho_  = rho(CALL, flow_star, tau_round_star, tau_round_);
-
-        field<real_t> forward = (tau_round_ > old_tau_round && excess_>0)
+        field<real_t> forward = (tau_round_ > old_tau_round_ && excess_>0) 
                                     * truncate( (capacity_ + flow_star)
                                             * (nbr(CALL, tau_)< tau_),
                                         excess_);
 
-        field<real_t> backward = (tau_round_ == old_tau_round && excess_>0) 
+        field<real_t> backward = ( tau_round_ == old_tau_round_ && excess_>0) 
                                     * truncate(flow_star 
                                             * (nbr(CALL, sigma_)< sigma_),
                                         excess_);
 
-        field<real_t> reduce = (excess_<0) 
+        field<real_t> reduce = ( excess_<0) 
                                     * truncate(flow_star
                                             * (nbr(CALL, rho_)< rho_),
                                         excess_);
@@ -259,9 +257,11 @@ MAIN() {
     // References
     
     real_t& tau_ = node.storage(node_distance_tau{});
+    real_t& rho_ = node.storage(node_distance_rho{});
     real_t& out_flow_ = node.storage(out_flow{});
     real_t& in_flow_ = node.storage(in_flow{});
     real_t& obstruction_condition_ = node.storage(obstruction_condition{});
+    real_t& another_condition_ = node.storage(another_condition{});
     field<real_t>& capacity_n = node.storage(tags::capacity_field{});
     field<real_t>& flow_star_ = node.storage(tags::flow_star_field{});
     bool& is_source_ = node.storage(is_source{});
@@ -282,7 +282,7 @@ MAIN() {
 
     field<real_t> flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow_star){
             flow_star_ = flow_star;
-            obstruction_condition_ = tau_round(CALL, flow_star);
+            another_condition_ = tau_round(CALL, flow_star);
             return update_flow(CALL, flow_star);
             });
     
@@ -295,10 +295,12 @@ MAIN() {
     in_flow_= is_sink_? sum(mux(flow_>0, 0.0, -flow_)) : 0.0;
 
 
-    //obstruction_condition_ = is_source_? tau_ : 0.0; //sum(flow_)!=-sum(flow_star);
+    //obstruction_condition_ =  (rho_  <= old(CALL,rho_ ) ) ||  ( tau_ >= old(CALL,tau_ )); //sempre vero
+    obstruction_condition_ =  (rho_  <= old(CALL,rho_ ) ) ||  ( tau_ >= old(CALL,tau_ ));
 
 
-    node.storage(node_color{}) =  is_source_ || (sum(flow_star_)>0 && !is_sink_)
+    node.storage(node_color{}) =  //obstruction_condition_ && sum(mux(flow_>0, flow_, 0.0))>0 ? color(BLUE): 
+                                is_source_ || (sum(flow_star_)>0 && !is_sink_)
                                     ? color(GREEN)
                                     : sum(flow_star_)<0 || is_sink_
                                         ? color(RED)
@@ -351,6 +353,7 @@ using store_t = tuple_store<
     out_flow,                           real_t,
     in_flow,                            real_t,
     obstruction_condition,              real_t,
+    another_condition,                  real_t,
     is_source,                          bool,
     is_sink,                            bool
 >;
@@ -358,7 +361,8 @@ using store_t = tuple_store<
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
-    obstruction_condition,      aggregator::min<real_t>
+    obstruction_condition,      aggregator::min<real_t>,
+    another_condition,          aggregator::min<real_t>
 >;
 using plot_t = plot::split<
     dev_num,
@@ -414,7 +418,7 @@ int main() {
     // The network object type (interactive simulator with given options).
     using net_t = component::interactive_simulator<option::list>::net;
     std::cout << "/*\n";
-    for (int seed=6; seed<7; seed++) for (int num=600; num<=900; num+=300) {
+    for (int seed=5; seed<7; seed++) for (int num=600; num<=900; num+=300) {
         // The initialisation values (simulation name).
         auto init_v = common::make_tagged_tuple<option::name, option::dev_num, option::seed, option::plotter>("Starting Project", num, seed, &plotter);
         // Construct the network object.
