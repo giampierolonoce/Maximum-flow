@@ -162,8 +162,8 @@ FUN real_t tau(ARGS, field<real_t> flow_star){ CODE
 
             return  is_sink_
                         ? 0.0 
-                        : is_source_
-                            ? INF 
+                        //: is_source_
+                        //    ? INF 
                                 : m ;
             });
 }
@@ -218,10 +218,9 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
         real_t excess_ = excess(CALL, flow_star);
 
         int rho_ =  rho(CALL , flow_star);
-        field<int> rho_star = nbr(CALL, 0, rho_);
-        int old_rho_ = old(CALL, 0, rho_);//self(CALL, rho_star);
+        field<int> rho_star = nbr(CALL, rho_);
 
-        int old_old_rho_ = old(CALL, 0, old_rho_);
+        int old_old_rho_ = old(CALL, old(CALL, rho_));
 
         tau_ = tau(CALL, flow_star);
 
@@ -230,10 +229,11 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
         alpha_  = alpha(CALL, flow_star);
 
         field<real_t> forward = (rho_ > old_old_rho_  && excess_>0) *
-                                     truncate( (capacity_ + flow_star)
-                                    * (nbr(CALL, !is_source_))
-                                    * (nbr(CALL, tau_)< tau_)
-                                ,excess_);
+                                truncate( (capacity_ + flow_star)
+                                        * (rho_star > old_old_rho_)
+                                        * (nbr(CALL, !is_source_))
+                                        * (nbr(CALL, tau_)< tau_)
+                                    ,excess_);
 
         bool forward_is_zero = sum(forward) == 0;
 
@@ -276,7 +276,7 @@ MAIN() {
     bool& is_sink_ = node.storage(is_sink{});
 
 
-    if(node.current_time()> 50 && (node.uid % 30 ==2 )){node.terminate();}
+    if(node.current_time()> 80 && (node.uid % 30 ==2 )){node.terminate();}
 
     // Usage of node storage
     is_source_ = node.uid== SOURCE_ID;
