@@ -29,7 +29,7 @@ namespace tags {
 
     struct node_distance_tau{};
     struct node_distance_sigma{};
-    struct node_distance_rho{};
+    struct node_distance_alpha{};
 
     struct out_flow{};
     struct in_flow{};
@@ -110,23 +110,23 @@ FUN real_t excess(ARGS, field<real_t> flow){ CODE
                     :sum( flow);
 }
 
-FUN int tau_round(ARGS, field<real_t> flow_star){ CODE
+FUN int rho(ARGS, field<real_t> flow_star){ CODE
 
     bool& is_sink_ = node.storage(tags::is_sink{});
     bool& is_source_ = node.storage(tags::is_source{});
 
     field<real_t> graph = capacity(CALL) + flow_star;
 
-    return nbr(CALL, 0, [&](field<int> tau_round_star){
+    return nbr(CALL, 0, [&](field<int> rho_star){
             
             field<real_t> tmp = map_hood([&](int r, real_t g){
                 return g>0 
                     ? r 
                     : 0;
-            }, tau_round_star, graph);
+            }, rho_star, graph);
             int m = max_hood(CALL, tmp);
 
-            int old_round = self(CALL, tau_round_star);
+            int old_round = self(CALL, rho_star);
 
             
 
@@ -182,16 +182,16 @@ FUN real_t sigma(ARGS, field<real_t> flow_star){ CODE
     });
 }
 
-FUN real_t rho(ARGS, field<real_t> flow_star ){ CODE
+FUN real_t alpha(ARGS, field<real_t> flow_star ){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
 
 
-    return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> rho_star){
+    return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> alpha_star){
             field<real_t> tmp = map_hood([&](real_t r, real_t f){
                 return f<0
                             ? r 
                             : INF;
-            }, rho_star, flow_star);
+            }, alpha_star, flow_star);
 
 
             real_t m = min_hood(CALL, tmp) + 1;
@@ -205,7 +205,7 @@ FUN real_t rho(ARGS, field<real_t> flow_star ){ CODE
 FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
         real_t& tau_= node.storage(tags::node_distance_tau{});
         real_t& sigma_ = node.storage(tags::node_distance_sigma{});
-        real_t& rho_ = node.storage(tags::node_distance_rho{});
+        real_t& alpha_ = node.storage(tags::node_distance_alpha{});
         field<real_t>& capacity_ = node.storage(tags::capacity_field{});
         field<real_t>& flow_ = node.storage(tags::flow_field{});
         bool& is_source_ = node.storage(tags::is_source{});
@@ -214,33 +214,33 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
 
         real_t excess_ = excess(CALL, flow_star);
 
-        int tau_round_ =  tau_round(CALL , flow_star);
-        field<int> tau_round_star = nbr(CALL, 0, tau_round_);
-        int old_tau_round_ = self(CALL, tau_round_star);
+        int rho_ =  rho(CALL , flow_star);
+        field<int> rho_star = nbr(CALL, 0, rho_);
+        int old_rho_ = self(CALL, rho_star);
 
         tau_ = tau(CALL, flow_star);
 
         sigma_ = sigma(CALL, flow_star);
 
-        rho_  = rho(CALL, flow_star);
+        alpha_  = alpha(CALL, flow_star);
 
-        field<real_t> forward = (tau_round_ > old_tau_round_ && excess_>0) 
+        field<real_t> forward = (rho_ > old_rho_ && excess_>0) 
                                     * truncate( (capacity_ + flow_star)
                                             * (nbr(CALL, tau_)< tau_),
                                         excess_);
 
-        field<real_t> backward = ( tau_round_ == old_tau_round_ && excess_>0) 
+        field<real_t> backward = ( rho_ == old_rho_ && excess_>0) 
                                     * truncate(flow_star 
                                             * (nbr(CALL, sigma_)< sigma_),
                                         excess_);
 
-        field<real_t> reduce = ( excess_<0) 
+        field<real_t> absorb = ( excess_<0) 
                                     * truncate(flow_star
-                                            * (nbr(CALL, rho_)< rho_),
+                                            * (nbr(CALL, alpha_)< alpha_),
                                         excess_);
         
 
-        flow_ = -flow_star + forward + backward + reduce;
+        flow_ = -flow_star + forward + backward + absorb;
         
         return flow_;
 }
@@ -257,7 +257,7 @@ MAIN() {
     // References
     
     real_t& tau_ = node.storage(node_distance_tau{});
-    real_t& rho_ = node.storage(node_distance_rho{});
+    real_t& alpha_ = node.storage(node_distance_alpha{});
     real_t& out_flow_ = node.storage(out_flow{});
     real_t& in_flow_ = node.storage(in_flow{});
     real_t& obstruction_condition_ = node.storage(obstruction_condition{});
@@ -282,7 +282,7 @@ MAIN() {
 
     field<real_t> flow_ = nbr(CALL, field<real_t>(0.0),[&](field<real_t> flow_star){
             flow_star_ = flow_star;
-            another_condition_ = tau_round(CALL, flow_star);
+            another_condition_ = rho(CALL, flow_star);
             return update_flow(CALL, flow_star);
             });
     
@@ -295,9 +295,9 @@ MAIN() {
     in_flow_= is_sink_? sum(mux(flow_>0, 0.0, -flow_)) : 0.0;
 
 
-    //obstruction_condition_ =  (rho_  <= old(CALL,rho_ ) ) ||  ( tau_ >= old(CALL,tau_ )); //sempre vero
-    obstruction_condition_ =  (rho_  <= old(CALL,rho_ ) ) ||  ( tau_ >= old(CALL,tau_ ));
-
+    //obstruction_condition_ =  (alpha_  <= old(CALL,alpha_ ) ) ||  ( tau_ >= old(CALL,tau_ )); //sempre vero
+    //obstruction_condition_ =  ( alpha_  <= old(CALL,alpha_ )) || (another_condition_ == old(CALL, another_condition_)) ; //sempre vero
+    obstruction_condition_ =  ( alpha_  <= old(CALL,alpha_ )) || (tau_ >= old(CALL,tau_ ) && another_condition_ == old(CALL, another_condition_)) ; //sempre vero
 
     node.storage(node_color{}) =  //obstruction_condition_ && sum(mux(flow_>0, flow_, 0.0))>0 ? color(BLUE): 
                                 is_source_ || (sum(flow_star_)>0 && !is_sink_)
@@ -346,7 +346,7 @@ using store_t = tuple_store<
     node_shape,                         shape,
     node_distance_tau,                  real_t,
     node_distance_sigma,                real_t,
-    node_distance_rho,                   real_t,
+    node_distance_alpha,                real_t,
     capacity_field,                     field<real_t>,
     flow_field,                         field<real_t>,
     flow_star_field,                    field<real_t>,
@@ -361,7 +361,7 @@ using store_t = tuple_store<
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
-    obstruction_condition,      aggregator::min<real_t>,
+    obstruction_condition,      aggregator::sum<real_t>,
     another_condition,          aggregator::min<real_t>
 >;
 using plot_t = plot::split<
