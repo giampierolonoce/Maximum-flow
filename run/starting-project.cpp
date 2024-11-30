@@ -116,14 +116,15 @@ FUN int rho(ARGS, field<real_t> flow_star){ CODE
     bool& is_source_ = node.storage(tags::is_source{});
 
     field<real_t> graph = capacity(CALL) + flow_star;
+    field<bool> not_source_field = nbr(CALL, !is_source_);
 
     return nbr(CALL, 0, [&](field<int> rho_star){
             
-            field<real_t> tmp = map_hood([&](int r, real_t g){
-                return g>0 
+            field<real_t> tmp = map_hood([&](int r, real_t g, bool b){
+                return g>0 && b
                     ? r 
                     : 0;
-            }, rho_star, graph);
+            }, rho_star, graph, not_source_field);
             int m = max_hood(CALL, tmp);
 
             int old_round = self(CALL, rho_star);
@@ -145,13 +146,15 @@ FUN real_t tau(ARGS, field<real_t> flow_star){ CODE
 
     field<real_t> graph = capacity(CALL) + flow_star;
 
+    field<bool> not_source_field = nbr(CALL, !is_source_);
+
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> tau_star){
-            field<real_t> tmp = map_hood([&](real_t t, real_t g){
-                return g>0
+            field<real_t> tmp = map_hood([&](real_t t, real_t g, bool b){
+                return g>0 && b
                         ? t 
                         : INF;
-            }, tau_star, graph);
+            }, tau_star, graph, not_source_field);
 
             real_t m = min_hood(CALL, tmp) + 1;
 
@@ -216,7 +219,9 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
 
         int rho_ =  rho(CALL , flow_star);
         field<int> rho_star = nbr(CALL, 0, rho_);
-        int old_rho_ = self(CALL, rho_star);
+        int old_rho_ = old(CALL, 0, rho_);//self(CALL, rho_star);
+
+        int old_old_rho_ = old(CALL, 0, old_rho_);
 
         tau_ = tau(CALL, flow_star);
 
@@ -224,20 +229,23 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
 
         alpha_  = alpha(CALL, flow_star);
 
-        field<real_t> forward = (rho_ > old_rho_ && excess_>0) 
-                                    * truncate( (capacity_ + flow_star)
-                                            * (nbr(CALL, tau_)< tau_),
-                                        excess_);
+        field<real_t> forward = (rho_ > old_old_rho_  && excess_>0) *
+                                     truncate( (capacity_ + flow_star)
+                                    * (nbr(CALL, !is_source_))
+                                    * (nbr(CALL, tau_)< tau_)
+                                ,excess_);
 
-        field<real_t> backward = ( rho_ == old_rho_ && excess_>0) 
+        bool forward_is_zero = sum(forward) == 0;
+
+        field<real_t> backward = ( rho_ == old_old_rho_ && excess_>0) 
                                     * truncate(flow_star 
-                                            * (nbr(CALL, sigma_)< sigma_),
-                                        excess_);
+                                            * (nbr(CALL, sigma_)< sigma_)
+                                ,excess_);
 
         field<real_t> absorb = ( excess_<0) 
                                     * truncate(flow_star
-                                            * (nbr(CALL, alpha_)< alpha_),
-                                        excess_);
+                                            * (nbr(CALL, alpha_)< alpha_)
+                                ,excess_);
         
 
         flow_ = -flow_star + forward + backward + absorb;
@@ -297,7 +305,7 @@ MAIN() {
 
     //obstruction_condition_ =  (alpha_  <= old(CALL,alpha_ ) ) ||  ( tau_ >= old(CALL,tau_ )); //sempre vero
     //obstruction_condition_ =  ( alpha_  <= old(CALL,alpha_ )) || (another_condition_ == old(CALL, another_condition_)) ; //sempre vero
-    obstruction_condition_ =  ( alpha_  <= old(CALL,alpha_ )) || (tau_ >= old(CALL,tau_ ) && another_condition_ == old(CALL, another_condition_)) ; //sempre vero
+    obstruction_condition_ =  is_source_ ? tau_ : 0.0;
 
     node.storage(node_color{}) =  //obstruction_condition_ && sum(mux(flow_>0, flow_, 0.0))>0 ? color(BLUE): 
                                 is_source_ || (sum(flow_star_)>0 && !is_sink_)
@@ -338,7 +346,7 @@ using log_s = sequence::periodic_n<1, 0, 1>;
 //! @brief The sequence of node generation events (dev_num devices all generated at time 0).
 using spawn_s = sequence::multiple<distribution::constant_i<size_t,dev_num>, distribution::constant_n<real_t,0>>;
 //! @brief The distribution of initial node positions.
-using rectangle_d = distribution::rect_n<1, 0, 0, 1000, 1000>;
+using rectangle_d = distribution::rect_n<1, 0, 0, 1300, 1300>;
 //! @brief The contents of the node storage as tags and associated types. 
 using store_t = tuple_store<
     node_color,                         color,
@@ -361,7 +369,7 @@ using store_t = tuple_store<
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
-    obstruction_condition,      aggregator::sum<real_t>,
+    obstruction_condition,      aggregator::max<real_t>,
     another_condition,          aggregator::min<real_t>
 >;
 using plot_t = plot::split<
