@@ -148,13 +148,18 @@ FUN real_t tau(ARGS, field<real_t> flow_star){ CODE
 
     field<bool> not_source_field = nbr(CALL, !is_source_);
 
+    int rho_ =  rho(CALL , flow_star);
+    field<int> rho_star = nbr(CALL, rho_);
+
+    int old_old_rho_ = old(CALL, old(CALL, rho_));
+
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> tau_star){
-            field<real_t> tmp = map_hood([&](real_t t, real_t g, bool b){
-                return g>0 && b
+            field<real_t> tmp = map_hood([&](real_t t, real_t g, bool b, int r){
+                return g>0 && b && r> old_old_rho_
                         ? t 
                         : INF;
-            }, tau_star, graph, not_source_field);
+            }, tau_star, graph, not_source_field, rho_star );
 
             real_t m = min_hood(CALL, tmp) + 1;
 
@@ -217,27 +222,22 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
 
         real_t excess_ = excess(CALL, flow_star);
 
-        int rho_ =  rho(CALL , flow_star);
-        field<int> rho_star = nbr(CALL, rho_);
-
-        int old_old_rho_ = old(CALL, old(CALL, rho_));
-
         tau_ = tau(CALL, flow_star);
 
         sigma_ = sigma(CALL, flow_star);
 
         alpha_  = alpha(CALL, flow_star);
 
-        field<real_t> forward = (rho_ > old_old_rho_  && excess_>0) *
+        field<real_t> forward = (tau_<INF  && excess_>0) *
                                 truncate( (capacity_ + flow_star)
-                                        * (rho_star > old_old_rho_)
+                                        //* (rho_star > old_old_rho_)
                                         * (nbr(CALL, !is_source_))
                                         * (nbr(CALL, tau_)< tau_)
                                     ,excess_);
 
         bool forward_is_zero = sum(forward) == 0;
 
-        field<real_t> backward = ( rho_ == old_old_rho_ && excess_>0) 
+        field<real_t> backward = ( tau_==INF && excess_>0) 
                                     * truncate(flow_star 
                                             * (nbr(CALL, sigma_)< sigma_)
                                 ,excess_);
@@ -305,9 +305,9 @@ MAIN() {
 
     //obstruction_condition_ =  (alpha_  <= old(CALL,alpha_ ) ) ||  ( tau_ >= old(CALL,tau_ )); //sempre vero
     //obstruction_condition_ =  ( alpha_  <= old(CALL,alpha_ )) || (another_condition_ == old(CALL, another_condition_)) ; //sempre vero
-    obstruction_condition_ =  is_source_ ? tau_ : 0.0;
+    obstruction_condition_ =  tau_>= old(CALL, tau_);
 
-    node.storage(node_color{}) =  //obstruction_condition_ && sum(mux(flow_>0, flow_, 0.0))>0 ? color(BLUE): 
+    node.storage(node_color{}) =  !obstruction_condition_ && sum(mux(flow_>0, flow_, 0.0))>0 ? color(BLUE): 
                                 is_source_ || (sum(flow_star_)>0 && !is_sink_)
                                     ? color(GREEN)
                                     : sum(flow_star_)<0 || is_sink_
@@ -369,7 +369,7 @@ using store_t = tuple_store<
 using aggregator_t = aggregators< 
     out_flow,                   aggregator::max<real_t>,
     in_flow,                    aggregator::max<real_t>,
-    obstruction_condition,      aggregator::max<real_t>,
+    obstruction_condition,      aggregator::min<real_t>,
     another_condition,          aggregator::min<real_t>
 >;
 using plot_t = plot::split<
