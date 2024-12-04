@@ -140,7 +140,7 @@ FUN int rho(ARGS, field<real_t> flow_star){ CODE
 
 
 
-FUN real_t tau(ARGS, field<real_t> flow_star){ CODE
+FUN real_t tau(ARGS, field<real_t> flow_star, field<int> rho_star){ CODE
     bool& is_sink_ = node.storage(tags::is_sink{});
     bool& is_source_ = node.storage(tags::is_source{});
 
@@ -148,10 +148,7 @@ FUN real_t tau(ARGS, field<real_t> flow_star){ CODE
 
     field<bool> not_source_field = nbr(CALL, !is_source_);
 
-    int rho_ =  rho(CALL , flow_star);
-    field<int> rho_star = nbr(CALL, rho_);
-
-    int old_old_rho_ = old(CALL, old(CALL, rho_));
+    int old_old_rho_ = old(CALL, self(CALL, rho_star));
 
 
     return nbr(CALL, is_sink_? 0.0 : INF, [&](field<real_t> tau_star){
@@ -163,13 +160,9 @@ FUN real_t tau(ARGS, field<real_t> flow_star){ CODE
 
             real_t m = min_hood(CALL, tmp) + 1;
 
-            real_t old_tau = self(CALL, tau_star);
-
             return  is_sink_
                         ? 0.0 
-                        //: is_source_
-                        //    ? INF 
-                                : m ;
+                        : m ;
             });
 }
 
@@ -222,7 +215,12 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
 
         real_t excess_ = excess(CALL, flow_star);
 
-        tau_ = tau(CALL, flow_star);
+        int rho_ =  rho(CALL , flow_star);
+        field<int> rho_star = nbr(CALL, rho_);
+
+        int old_old_rho_ = old(CALL, old(CALL, rho_));
+
+        tau_ = tau(CALL, flow_star, rho_star);
 
         sigma_ = sigma(CALL, flow_star);
 
@@ -230,7 +228,7 @@ FUN field<real_t> update_flow(ARGS, field<real_t>& flow_star){ CODE
 
         field<real_t> forward = (tau_<INF  && excess_>0) *
                                 truncate( (capacity_ + flow_star)
-                                        //* (rho_star > old_old_rho_)
+                                        * (rho_star > old_old_rho_)
                                         * (nbr(CALL, !is_source_))
                                         * (nbr(CALL, tau_)< tau_)
                                     ,excess_);
@@ -305,7 +303,7 @@ MAIN() {
 
     //obstruction_condition_ =  (alpha_  <= old(CALL,alpha_ ) ) ||  ( tau_ >= old(CALL,tau_ )); //sempre vero
     //obstruction_condition_ =  ( alpha_  <= old(CALL,alpha_ )) || (another_condition_ == old(CALL, another_condition_)) ; //sempre vero
-    obstruction_condition_ =  tau_>= old(CALL, tau_);
+    obstruction_condition_ = tau_==INF;
 
     node.storage(node_color{}) =  !obstruction_condition_ && sum(mux(flow_>0, flow_, 0.0))>0 ? color(BLUE): 
                                 is_source_ || (sum(flow_star_)>0 && !is_sink_)
