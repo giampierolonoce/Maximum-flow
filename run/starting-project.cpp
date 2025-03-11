@@ -184,7 +184,7 @@ namespace fcpp
             
 
             return is_sink_
-                    ? old_round + 1
+                    ? m + 1
                     : std::max(m, old_round); });
         }
 
