@@ -62,10 +62,7 @@ namespace fcpp
             {
             };
 
-            struct obstruction_condition
-            {
-            };
-            struct another_condition
+            struct node_rho
             {
             };
 
@@ -274,13 +271,21 @@ namespace fcpp
             alpha_ = alpha(CALL, flow_star);
 
             field<real_t> forward = (tau_ < INF && excess_ > 0) *
-                                    truncate((capacity_ + flow_star) * (rho_star > old_old_rho_) * (nbr(CALL, !is_source_)) * (nbr(CALL, tau_) < tau_), excess_);
+                                    truncate((capacity_ + flow_star) 
+                                            * (rho_star > old_old_rho_) 
+                                            * (nbr(CALL, !is_source_)) 
+                                            * (nbr(CALL, tau_) < tau_)
+                                        , excess_);
 
             bool forward_is_zero = sum(forward) == 0;
 
-            field<real_t> backward = (tau_ == INF && excess_ > 0) * truncate(flow_star * (nbr(CALL, sigma_) < sigma_), excess_);
+            field<real_t> backward = (tau_ == INF && excess_ > 0) * truncate(flow_star 
+                                                                            * (nbr(CALL, sigma_) < sigma_)
+                                                                        , excess_);
 
-            field<real_t> absorb = (excess_ < 0) * truncate(flow_star * (nbr(CALL, alpha_) < alpha_), excess_);
+            field<real_t> absorb = (excess_ < 0) * truncate(flow_star 
+                                                        * (nbr(CALL, alpha_) < alpha_)
+                                                    , excess_);
 
             flow_ = -flow_star + forward + backward + absorb;
 
@@ -299,8 +304,7 @@ namespace fcpp
             real_t &alpha_ = node.storage(node_distance_alpha{});
             real_t &out_flow_ = node.storage(out_flow{});
             real_t &in_flow_ = node.storage(in_flow{});
-            real_t &obstruction_condition_ = node.storage(obstruction_condition{});
-            real_t &another_condition_ = node.storage(another_condition{});
+            real_t &rho_ = node.storage(node_rho{});
             field<real_t> &capacity_n = node.storage(tags::capacity_field{});
             field<real_t> &flow_star_ = node.storage(tags::flow_star_field{});
             bool &is_source_ = node.storage(is_source{});
@@ -316,16 +320,17 @@ namespace fcpp
             is_sink_ = node.uid == SINK_ID;
 
             node.storage(node_shape{}) = is_source_
-                                             ? shape::star
-                                         : is_sink_
-                                             ? shape::tetrahedron
-                                             : shape::sphere;
+                                            ? shape::star
+                                            : is_sink_
+                                                ? shape::tetrahedron
+                                                : shape::sphere;
 
             field<real_t> flow_ = nbr(CALL, field<real_t>(0.0), [&](field<real_t> flow_star)
-                                      {
-            flow_star_ = flow_star;
-            another_condition_ = rho(CALL, flow_star);
-            return update_flow(CALL, flow_star); });
+                                {
+                                    flow_star_ = flow_star;
+                                    rho_ = rho(CALL, flow_star);
+                                    return update_flow(CALL, flow_star);    
+                                });
 
             node.storage(node_size{}) = is_sink_ || is_source_
                                             ? 20
@@ -334,18 +339,13 @@ namespace fcpp
             out_flow_ = is_source_ ? sum(mux(flow_ > 0, flow_, 0.0)) : 0.0;
             in_flow_ = is_sink_ ? sum(mux(flow_ > 0, 0.0, -flow_)) : 0.0;
 
-            obstruction_condition_ =  (alpha_  <= old(CALL,alpha_ ) ) ||  ( tau_ >= old(CALL,tau_ ));
-            // obstruction_condition_ =  ( alpha_  <= old(CALL,alpha_ )) || (another_condition_ == old(CALL, another_condition_)) ; //sempre vero
-            //obstruction_condition_ = tau_ == INF;
-
-            node.storage(node_color{}) =  !obstruction_condition_ && sum(mux(flow_>0, flow_, 0.0))>0 ? color(BLUE):
-                is_source_ || (sum(flow_star_) > 0 && !is_sink_)
+            node.storage(node_color{}) =   is_source_ || (sum(flow_star_) > 0 && !is_sink_)
                     ? color(GREEN)
-                : sum(flow_star_) < 0 || is_sink_
-                    ? color(RED)
-                : sum(mux(flow_ > 0, flow_, 0.0)) > 0
-                    ? color(YELLOW)
-                    : color(BLACK);
+                    : sum(flow_star_) < 0 || is_sink_
+                            ? color(RED)
+                            : sum(mux(flow_ > 0, flow_, 0.0)) > 0
+                                    ? color(YELLOW)
+                                    : color(BLACK);
         }
         //! @brief Export types used by the main function.
         FUN_EXPORT main_t = export_list<device_t, field<real_t>, real_t, bool, int, field<int>>;
@@ -392,16 +392,14 @@ namespace fcpp
             flow_star_field, field<real_t>,
             out_flow, real_t,
             in_flow, real_t,
-            obstruction_condition, real_t,
-            another_condition, real_t,
+            node_rho, real_t,
             is_source, bool,
             is_sink, bool>;
         //! @brief The tags and corresponding aggregators to be logged (change as needed).
         using aggregator_t = aggregators<
             out_flow, aggregator::max<real_t>,
-            in_flow, aggregator::max<real_t>,
-            obstruction_condition, aggregator::min<real_t>,
-            another_condition, aggregator::min<real_t>>;
+            in_flow, aggregator::max<real_t>
+            >;
         using plot_t = plot::split<
             dev_num,
             plot::split<
@@ -452,8 +450,8 @@ int main()
     // The network object type (interactive simulator with given options).
     using net_t = component::interactive_simulator<option::list>::net;
     std::cout << "/*\n";
-    for (int seed = 5; seed < 7; seed++)
-        for (int num = 600; num <= 900; num += 300)
+    for (int seed = 5; seed < 8; seed++)
+        for (int num = 4000; num <= 8000; num += 2000)
         {
             // The initialisation values (simulation name).
             auto init_v = common::make_tagged_tuple<option::name, option::dev_num, option::seed, option::plotter>("Starting Project", num, seed, &plotter);
