@@ -45,6 +45,10 @@ namespace fcpp
             {
             };
 
+            struct residual_graph
+            {
+            };  
+
             struct node_distance_tau
             {
             };
@@ -69,8 +73,6 @@ namespace fcpp
             struct dev_num
             {
             };
-
-            struct measure{};
 
         }
 
@@ -192,10 +194,7 @@ namespace fcpp
             CODE bool &is_sink_ = node.storage(tags::is_sink{});
             bool &is_source_ = node.storage(tags::is_source{});
 
-            field<real_t> &flow_star_ = node.storage(tags::flow_star_field{});
-            field<real_t> graph = capacity(CALL) + flow_star_;
-
-            field<bool> not_source_field = nbr(CALL, !is_source_);
+            field<real_t> &residual_graph_ = node.storage(tags::residual_graph{});
 
             real_t rho_ = rho(CALL);
 
@@ -207,12 +206,11 @@ namespace fcpp
 
             return nbr(CALL, is_sink_ ? 0.0 : INF, [&](field<real_t> tau_star){
 
-                field<real_t> tmp = mux(graph>0 && not_source_field, tau_star, INF);
+                field<real_t> tmp = mux(residual_graph_>0, tau_star, INF);
 
                 real_t m = min_hood(CALL, tmp) + 1;
 
-                bool condition = max_hood(CALL, (old_rho_star < rho_star)*(graph > 0)* not_source_field);
-
+                bool condition = max_hood(CALL, (old_rho_star < rho_star)*(residual_graph_ > 0));
                 return  is_sink_
                             ? 0.0
                             : condition? m : INF ;
@@ -265,6 +263,7 @@ namespace fcpp
             field<real_t> &capacity_ = node.storage(capacity_field{});
             bool &is_source_ = node.storage(is_source{});
             field<real_t> &flow_star_ = node.storage(flow_star_field{});
+            field<real_t> &residual_graph_ = node.storage(residual_graph{});
 
 
             field<bool> not_source_field = nbr(CALL, !is_source_);
@@ -274,6 +273,7 @@ namespace fcpp
             return nbr(CALL, 0.0, [&](field<real_t> flow_star){
                 
                 flow_star_ = flow_star;
+                residual_graph_ = (capacity_ + flow_star_) * not_source_field;
 
                 real_t excess_ = excess(CALL, flow_star_);
 
@@ -285,17 +285,13 @@ namespace fcpp
 
 
                 field<real_t> forward = (tau_<INF && excess_ > 0) *
-                                        truncate((capacity_ + flow_star_) 
-                                                * (nbr(CALL, !is_source_))
-                                                * (tau_ > nbr(CALL, tau_))
+                                        truncate( residual_graph_ * (tau_ > nbr(CALL, tau_))
                                             , excess_);
 
-                field<real_t> backward = ( tau_==INF && excess_ > 0) * truncate(flow_star_ 
-                                                                                * (nbr(CALL, sigma_) < sigma_)
+                field<real_t> backward = ( tau_==INF && excess_ > 0) * truncate(flow_star_ * (nbr(CALL, sigma_) < sigma_)
                                                                             , excess_);
 
-                field<real_t> absorb = (excess_ < 0) * truncate(flow_star_ 
-                                                            * (nbr(CALL, alpha_) < alpha_)
+                field<real_t> absorb = (excess_ < 0) * truncate(flow_star_ * (nbr(CALL, alpha_) < alpha_)
                                                         , excess_);
 
                 return -flow_star_ + forward + backward + absorb;
@@ -320,7 +316,6 @@ namespace fcpp
             field<real_t> &capacity_n = node.storage(capacity_field{});
             bool &is_source_ = node.storage(is_source{});
             bool &is_sink_ = node.storage(is_sink{});
-            real_t &measure_ = node.storage(measure{});
             field<real_t> &flow_ = node.storage(flow_field{});
 
             is_source_ = node.uid == SOURCE_ID;
@@ -353,8 +348,6 @@ namespace fcpp
 
             out_flow_ = is_source_ ? sum(mux(flow_ > 0, flow_, 0.0)) : 0.0;
             in_flow_ = is_sink_ ? sum(mux(flow_ > 0, 0.0, -flow_)) : 0.0;
-
-            //measure_ = tau_<INF && sum(mux(flow_ > 0, 0.0, -flow_))>0 ? tau_ : 0;
 
             node.storage(node_color{}) =  tau_ < old(CALL, tau_)
             ? color(BLUE) 
@@ -389,7 +382,7 @@ namespace fcpp
         // using round_s = sequence::periodic_n<1,0,1>;
         using round_s = sequence::periodic<
             distribution::interval_n<times_t, 0, 1>,    // uniform time in the [0,1] interval for start
-            distribution::weibull_n<times_t, 100, 5, 100> // weibull-distributed time for interval (10/10=1 mean, 1/10=0.1 deviation)
+            distribution::weibull_n<times_t, 100, 10, 100> // weibull-distributed time for interval (10/10=1 mean, 1/10=0.1 deviation)
             >;
 
         //! @brief The sequence of network snapshots (one every simulated second).
@@ -409,17 +402,16 @@ namespace fcpp
             capacity_field, field<real_t>,
             flow_field, field<real_t>,
             flow_star_field, field<real_t>,
+            residual_graph, field<real_t>, 
             out_flow, real_t,
             in_flow, real_t,
             node_rho, real_t,
-            measure, real_t,
             is_source, bool,
             is_sink, bool>;
         //! @brief The tags and corresponding aggregators to be logged (change as needed).
         using aggregator_t = aggregators<
             out_flow, aggregator::max<real_t>,
-            in_flow, aggregator::max<real_t>,
-            measure, aggregator::max<real_t> 
+            in_flow, aggregator::max<real_t>
             >;
         using plot_t = plot::split<
             dev_num,
