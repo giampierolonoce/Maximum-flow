@@ -72,7 +72,6 @@ namespace fcpp
 
             struct measure{};
 
-            struct node_distance_gamma{};
         }
 
         //! @brief The maximum communication range between nodes.
@@ -146,60 +145,59 @@ namespace fcpp
                        : -truncate(-inputField, -inputValue);
         }
 
-        FUN real_t excess(ARGS, field<real_t> flow)
+        // computes the total flow traversing a device, being aware of source and sink
+        FUN real_t excess(ARGS, field<real_t> inputFlow)
         {
             CODE
 
-                bool &is_source_ = node.storage(tags::is_source{});
+            bool &is_source_ = node.storage(tags::is_source{});
             bool &is_sink_ = node.storage(tags::is_sink{});
 
             return is_source_
                        ? INF
                    : is_sink_
                        ? -INF
-                       : sum(flow);
+                       : sum(inputFlow);
         }
 
-        FUN real_t rho(ARGS, field<real_t> flow_star)
+        //propagates the round of the sink device, designed to be robust to perturbations regarding the sink
+        FUN real_t rho(ARGS)
         {
             CODE
 
             bool &is_sink_ = node.storage(tags::is_sink{});
             bool &is_source_ = node.storage(tags::is_source{});
 
-            field<real_t> graph = capacity(CALL) + flow_star;
+            field<real_t> &flow_star_ = node.storage(tags::flow_star_field{});
+            field<real_t> graph = capacity(CALL) + flow_star_;
             field<bool> not_source_field = nbr(CALL, !is_source_);
 
             return nbr(CALL, 0, [&](field<real_t> rho_star){
             
-                field<real_t> tmp = map_hood([&](int r, real_t g, bool b){
-                    return g>0 && b
-                        ? r 
-                        : 0;
-                }, rho_star, graph, not_source_field);
+                field<real_t> tmp = mux(graph>0 && not_source_field, rho_star, 0.0);
                 real_t m = max_hood(CALL, tmp);
 
-                real_t old_round = self(CALL, rho_star);
-
-                
-
                 return is_sink_
-                        ? old_round + 1
-                        : m;
-                        //: std::max(m, old_round); 
+                        ? m + 1
+                        : m; 
             });
         }
 
-        FUN real_t tau(ARGS, field<real_t> flow_star)
+        /* computes the distance in the residual graph from the sink. 
+         A device with a rho value strictly greater than the old one is receiving updates from the sink,
+         hence the sink is presumably still reachable from it.
+        */
+        FUN real_t tau(ARGS)
         {
             CODE bool &is_sink_ = node.storage(tags::is_sink{});
             bool &is_source_ = node.storage(tags::is_source{});
 
-            field<real_t> graph = capacity(CALL) + flow_star;
+            field<real_t> &flow_star_ = node.storage(tags::flow_star_field{});
+            field<real_t> graph = capacity(CALL) + flow_star_;
 
             field<bool> not_source_field = nbr(CALL, !is_source_);
 
-            real_t rho_ = rho(CALL, flow_star);
+            real_t rho_ = rho(CALL);
 
             real_t old_rho = old(CALL, rho_);
 
@@ -209,11 +207,7 @@ namespace fcpp
 
             return nbr(CALL, is_sink_ ? 0.0 : INF, [&](field<real_t> tau_star){
 
-                field<real_t> tmp = map_hood([&](real_t t, real_t g, bool b, real_t r, real_t old_r){
-                    return g>0 && b //&& rho_>old_r
-                            ? t 
-                            : INF;
-                }, tau_star, graph, not_source_field, rho_star, old_rho_star);
+                field<real_t> tmp = mux(graph>0 && not_source_field, tau_star, INF);
 
                 real_t m = min_hood(CALL, tmp) + 1;
 
@@ -222,78 +216,45 @@ namespace fcpp
                 return  is_sink_
                             ? 0.0
                             : condition? m : INF ;
-                            //: m; 
             });
         }
 
-        FUN real_t gamma(ARGS, field<real_t> flow_star)
-        {
-            CODE bool &is_sink_ = node.storage(tags::is_sink{});
-            bool &is_source_ = node.storage(tags::is_source{});
-
-            field<real_t> graph = capacity(CALL) + flow_star;
-
-            field<bool> not_source_field = nbr(CALL, !is_source_);
-
-            real_t rho_ = rho(CALL, flow_star);
-
-            real_t old_rho = old(CALL, rho_);
-
-            field<real_t> rho_star = nbr(CALL, rho_);
-            field<real_t> old_rho_star = nbr(CALL, old_rho);
-            
-
-            return nbr(CALL, is_sink_ ? 0.0 : INF, [&](field<real_t> gamma_star){
-
-                field<real_t> tmp = map_hood([&](real_t t, real_t g, bool b, real_t r, real_t old_r){
-                    return g>0 && b && r>old_r
-                            ? t 
-                            : INF;
-                }, gamma_star, graph, not_source_field, rho_star, old_rho_star);
-
-                real_t m = min_hood(CALL, tmp) + 1;
-
-                return  is_sink_
-                            ? 0.0
-                            : m; 
-            });
-        }
-
-        FUN real_t sigma(ARGS, field<real_t> flow_star)
+        /* computes the distance from the source in the graph given by incoming flow. This distance determine a path for the excess flow 
+           - that cannot the pushed further toward the sink - to be pushed backward to the source
+        */
+        FUN real_t sigma(ARGS)
         {
             CODE bool &is_source_ = node.storage(tags::is_source{});
 
+            field<real_t> &flow_star_ = node.storage(tags::flow_star_field{});
+
             return nbr(CALL, is_source_ ? 0.0 : INF, [&](field<real_t> sigma_star){
-            field<real_t> tmp = map_hood([&](real_t s, real_t f){
-                return f>0
-                            ? s 
-                            : INF;
-            }, sigma_star, flow_star);
+                field<real_t> tmp = mux(flow_star_> 0, sigma_star, INF);
 
-            real_t m = min_hood(CALL, tmp) + 1;
+                real_t m = min_hood(CALL, tmp) + 1;
 
-            return  is_source_? 0.0 :m; });
+                return  is_source_? 0.0 :m; 
+            });
         }
 
-        FUN real_t alpha(ARGS, field<real_t> flow_star)
+        /* computes the distance from the sink in the graph given by outgoing flow. This distance determines a path for the debt of flow 
+        - provoked from a shutdown of another device that was pushing flow into this - to reach the sink, i.e. the debt is absorbed by sink 
+        */
+        FUN real_t alpha(ARGS)
         {
             CODE bool &is_sink_ = node.storage(tags::is_sink{});
+            field<real_t> &flow_star_ = node.storage(tags::flow_star_field{});
 
-            return nbr(CALL, is_sink_ ? 0.0 : INF, [&](field<real_t> alpha_star)
-                       {
-            field<real_t> tmp = map_hood([&](real_t a, real_t f){
-                return f<0
-                            ? a 
-                            : INF;
-            }, alpha_star, flow_star);
+            return nbr(CALL, is_sink_ ? 0.0 : INF, [&](field<real_t> alpha_star){
+                field<real_t> tmp = mux(flow_star_< 0, alpha_star, INF);
+                
+                real_t m = min_hood(CALL, tmp) + 1;
 
-
-            real_t m = min_hood(CALL, tmp) + 1;
-
-            return  is_sink_? 0.0 :m; });
+                return  is_sink_? 0.0 :m; 
+            });
         }
 
-        FUN field<real_t> update_flow(ARGS, field<real_t> &flow_star)
+        FUN field<real_t> flow(ARGS)
         {
             CODE 
             using namespace tags;
@@ -302,55 +263,44 @@ namespace fcpp
             real_t &sigma_ = node.storage(node_distance_sigma{});
             real_t &alpha_ = node.storage(node_distance_alpha{});
             field<real_t> &capacity_ = node.storage(capacity_field{});
-            field<real_t> &flow_ = node.storage(flow_field{});
             bool &is_source_ = node.storage(is_source{});
+            field<real_t> &flow_star_ = node.storage(flow_star_field{});
 
-            real_t &measure_ = node.storage(measure{});
-            field<real_t> &gamma_ = node.storage(node_distance_gamma{});
 
             field<bool> not_source_field = nbr(CALL, !is_source_);
 
-            real_t &rho_ = node.storage(node_rho{});
-
             capacity_ = capacity(CALL);
 
-            real_t excess_ = excess(CALL, flow_star);
+            return nbr(CALL, 0.0, [&](field<real_t> flow_star){
+                
+                flow_star_ = flow_star;
 
-            rho_ = rho(CALL, flow_star);
-            real_t old_rho = old(CALL, rho_);
-            field<real_t> rho_star = nbr(CALL, rho_);
-            field<real_t> old_rho_star = nbr(CALL, old_rho);
+                real_t excess_ = excess(CALL, flow_star_);
 
-            tau_ = tau(CALL, flow_star);
+                tau_ = tau(CALL);
 
-            sigma_ = sigma(CALL, flow_star);
+                sigma_ = sigma(CALL);
 
-            alpha_ = alpha(CALL, flow_star);
+                alpha_ = alpha(CALL);
 
-            measure_ = max_hood(CALL, (old_rho_star < rho_)*(capacity_ + flow_star > 0) * not_source_field);
 
-            field<real_t> forward = (tau_<INF && excess_ > 0) *
-                                    truncate((capacity_ + flow_star) 
-                                            * (nbr(CALL, !is_source_))
-                                            * (tau_ > nbr(CALL, tau_))
-                                            //* (1 - (rho_== old_rho)*(rho_star == old_rho))
-                                            //* (rho_ > old_rho_star)
-                                            //* (nbr(CALL, measure_))
-                                        , excess_);
+                field<real_t> forward = (tau_<INF && excess_ > 0) *
+                                        truncate((capacity_ + flow_star_) 
+                                                * (nbr(CALL, !is_source_))
+                                                * (tau_ > nbr(CALL, tau_))
+                                            , excess_);
 
-            bool forward_is_zero = sum(forward) == 0;
+                field<real_t> backward = ( tau_==INF && excess_ > 0) * truncate(flow_star_ 
+                                                                                * (nbr(CALL, sigma_) < sigma_)
+                                                                            , excess_);
 
-            field<real_t> backward = ( tau_==INF && excess_ > 0) * truncate(flow_star 
-                                                                            * (nbr(CALL, sigma_) < sigma_)
-                                                                        , excess_);
+                field<real_t> absorb = (excess_ < 0) * truncate(flow_star_ 
+                                                            * (nbr(CALL, alpha_) < alpha_)
+                                                        , excess_);
 
-            field<real_t> absorb = (excess_ < 0) * truncate(flow_star 
-                                                        * (nbr(CALL, alpha_) < alpha_)
-                                                    , excess_);
-
-            flow_ = -flow_star + forward + backward + absorb;
-
-            return flow_;
+                return -flow_star_ + forward + backward + absorb;
+            });
+            
         }
 
         //! @brief Main function.
@@ -365,22 +315,29 @@ namespace fcpp
             real_t &alpha_ = node.storage(node_distance_alpha{});
             real_t &out_flow_ = node.storage(out_flow{});
             real_t &in_flow_ = node.storage(in_flow{});
+            field<real_t> &flow_star_ = node.storage(flow_star_field{});
             real_t &rho_ = node.storage(node_rho{});
             field<real_t> &capacity_n = node.storage(capacity_field{});
-            field<real_t> &flow_star_ = node.storage(flow_star_field{});
             bool &is_source_ = node.storage(is_source{});
             bool &is_sink_ = node.storage(is_sink{});
             real_t &measure_ = node.storage(measure{});
-            field<real_t> &gamma_ = node.storage(node_distance_gamma{});
+            field<real_t> &flow_ = node.storage(flow_field{});
 
-            if (node.current_time() > 80 && (node.uid % 30 == 2))
+            is_source_ = node.uid == SOURCE_ID;
+            is_sink_ = node.uid == SINK_ID;
+            /*
+            if (node.current_time() > 50 && (node.uid % 30 == 2))
             {
                 node.terminate();
             }
+            */
 
-            // Usage of node storage
-            is_source_ = node.uid == SOURCE_ID;
-            is_sink_ = node.uid == SINK_ID;
+            /*
+            if(node.current_time()>50){
+                is_sink_ = node.uid == 3;
+            }
+            */
+            
 
             node.storage(node_shape{}) = is_source_
                                             ? shape::star
@@ -388,11 +345,7 @@ namespace fcpp
                                                 ? shape::tetrahedron
                                                 : shape::sphere;
 
-            field<real_t> flow_ = nbr(CALL, field<real_t>(0.0), [&](field<real_t> flow_star)
-                                {
-                                    flow_star_ = flow_star;
-                                    return update_flow(CALL, flow_star);   
-                                });
+            flow_ = flow(CALL);
 
             node.storage(node_size{}) = is_sink_ || is_source_
                                             ? 20
@@ -402,7 +355,6 @@ namespace fcpp
             in_flow_ = is_sink_ ? sum(mux(flow_ > 0, 0.0, -flow_)) : 0.0;
 
             //measure_ = tau_<INF && sum(mux(flow_ > 0, 0.0, -flow_))>0 ? tau_ : 0;
-            gamma_ = gamma(CALL, flow_star_);
 
             node.storage(node_color{}) =  tau_ < old(CALL, tau_)
             ? color(BLUE) 
@@ -445,7 +397,7 @@ namespace fcpp
         //! @brief The sequence of node generation events (dev_num devices all generated at time 0).
         using spawn_s = sequence::multiple<distribution::constant_i<size_t, dev_num>, distribution::constant_n<real_t, 0>>;
         //! @brief The distribution of initial node positions.
-        using rectangle_d = distribution::rect_n<1, 0, 0, 1300, 1300>;
+        using rectangle_d = distribution::rect_n<1, 0, 0, 1500, 1500>;
         //! @brief The contents of the node storage as tags and associated types.
         using store_t = tuple_store<
             node_color, color,
@@ -461,7 +413,6 @@ namespace fcpp
             in_flow, real_t,
             node_rho, real_t,
             measure, real_t,
-            node_distance_gamma, field<real_t>,
             is_source, bool,
             is_sink, bool>;
         //! @brief The tags and corresponding aggregators to be logged (change as needed).
@@ -521,7 +472,7 @@ int main()
     using net_t = component::interactive_simulator<option::list>::net;
     std::cout << "/*\n";
     for (int seed = 6; seed < 9; seed++)
-        for (int num = 6000; num <= 8000; num += 2000)
+        for (int num = 2000; num <= 4000; num += 2000)
         {
             // The initialisation values (simulation name).
             auto init_v = common::make_tagged_tuple<option::name, option::dev_num, option::seed, option::plotter>("Starting Project", num, seed, &plotter);
